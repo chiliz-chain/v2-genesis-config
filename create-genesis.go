@@ -19,7 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
@@ -81,12 +80,11 @@ func simulateSystemContract(genesis *core.Genesis, systemContract common.Address
 		types.NewMessage(common.Address{}, &systemContract, 0, big.NewInt(0), 10_000_000, big.NewInt(0), []byte{}, nil, false),
 	)
 	evm := vm.NewEVM(blockContext, txContext, statedb, genesis.Config, vm.Config{})
-	ephemeralAddress := crypto.CreateAddress(common.Address{}, evm.StateDB.GetNonce(common.Address{}))
-	deployedBytecode, _, _, err := evm.Create(vm.AccountRef(common.Address{}), bytecode, 10_000_000, big.NewInt(0))
+	deployedBytecode, _, err := evm.CreateWithAddress(vm.AccountRef(common.Address{}), bytecode, 10_000_000, big.NewInt(0), systemContract)
 	if err != nil {
 		return err
 	}
-	storage := readDirtyStorageFromState(statedb.GetOrNewStateObject(ephemeralAddress))
+	storage := readDirtyStorageFromState(statedb.GetOrNewStateObject(systemContract))
 	logs := statedb.Logs()
 	// read state changes from state database
 	genesisAccount := core.GenesisAccount{
@@ -94,13 +92,10 @@ func simulateSystemContract(genesis *core.Genesis, systemContract common.Address
 		Storage: storage,
 		Balance: big.NewInt(0),
 		Nonce:   0,
-	}
-	// it might bring some incompatibility to other Geth implementations like Erigon, I'm not sure do we need to
-	// keep it, but it might be important because genesis contracts produces events, and it's better to save them if
-	// its supported
-	logsGenesisField := reflect.ValueOf(genesis).Elem().FieldByName("Logs")
-	if logsGenesisField.IsValid() {
-		logsGenesisField.Elem().Set(reflect.ValueOf(logs))
+		// it might bring some incompatibility to other Geth implementations like Erigon, I'm not sure do we need to
+		// keep it, but it might be important because genesis contracts produces events, and it's better to save them if
+		// its supported
+		Logs: logs,
 	}
 	if genesis.Alloc == nil {
 		genesis.Alloc = make(core.GenesisAlloc)
