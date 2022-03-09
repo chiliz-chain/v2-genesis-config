@@ -149,6 +149,8 @@ type consensusParams struct {
 	FelonyThreshold          uint32
 	ValidatorJailEpochLength uint32
 	UndelegatePeriod         uint32
+	MinValidatorStakeAmount  uint64
+	MinStakingAmount         uint64
 }
 
 type genesisConfig struct {
@@ -180,13 +182,15 @@ func createGenesisConfig(config genesisConfig, targetFile string) error {
 	invokeConstructorOrPanic(genesis, stakingAddress, stakingRawArtifact, []string{"address[]"}, []interface{}{
 		config.Validators,
 	})
-	invokeConstructorOrPanic(genesis, chainConfigAddress, chainConfigRawArtifact, []string{"uint32", "uint32", "uint32", "uint32", "uint32", "uint32"}, []interface{}{
+	invokeConstructorOrPanic(genesis, chainConfigAddress, chainConfigRawArtifact, []string{"uint32", "uint32", "uint32", "uint32", "uint32", "uint32", "uint64", "uint64"}, []interface{}{
 		config.ConsensusParams.ActiveValidatorsLength,
 		config.ConsensusParams.EpochBlockInterval,
 		config.ConsensusParams.MisdemeanorThreshold,
 		config.ConsensusParams.FelonyThreshold,
 		config.ConsensusParams.ValidatorJailEpochLength,
 		config.ConsensusParams.UndelegatePeriod,
+		config.ConsensusParams.MinValidatorStakeAmount * 1e18,
+		config.ConsensusParams.MinStakingAmount * 1e18,
 	})
 	invokeConstructorOrPanic(genesis, slashingIndicatorAddress, slashingIndicatorRawArtifact, []string{}, []interface{}{})
 	invokeConstructorOrPanic(genesis, systemRewardAddress, systemRewardRawArtifact, []string{"address"}, []interface{}{
@@ -272,6 +276,8 @@ var devnetConfig = genesisConfig{
 		FelonyThreshold:          100,
 		ValidatorJailEpochLength: 1,
 		UndelegatePeriod:         0,
+		MinValidatorStakeAmount:  1,
+		MinStakingAmount:         1,
 	},
 	// owner of the governance
 	VotingPeriod: 20, // 1 minute
@@ -303,6 +309,8 @@ var testnetConfig = genesisConfig{
 		FelonyThreshold:          150,   // after missing this amount of blocks per day validator goes in jail for N epochs
 		ValidatorJailEpochLength: 7,     // how many epochs validator should stay in jail (7 epochs = ~7 days)
 		UndelegatePeriod:         6,     // allow claiming funds only after 6 epochs (~7 days)
+		MinValidatorStakeAmount:  1,     // how much CHZ validator must stake to create a validator (in ether)
+		MinStakingAmount:         1,     // minimum staking amount for delegators (in ether)
 	},
 	// owner of the governance
 	VotingPeriod: 60, // 3 minutes

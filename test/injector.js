@@ -38,6 +38,6 @@ contract("Injector", async (accounts) => {
     await testInjector(Deployer, [])
     await testInjector(Governance, '1')
     await testInjector(Staking, [])
-    await testInjector(ChainConfig, '0', '0', '0', '0', '0', '0')
+    await testInjector(ChainConfig, '0', '0', '0', '0', '0', '0', '0', '0')
   })
 });
