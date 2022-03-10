@@ -55,6 +55,10 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         emit MinStakingAmountChanged(0, minStakingAmount);
     }
 
+    function getConsensusParams() external view returns (ConsensusParams memory) {
+        return _consensusParams;
+    }
+
     function getActiveValidatorsLength() external view override returns (uint32) {
         return _consensusParams.activeValidatorsLength;
     }
