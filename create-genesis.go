@@ -189,8 +189,8 @@ func createGenesisConfig(config genesisConfig, targetFile string) error {
 		config.ConsensusParams.FelonyThreshold,
 		config.ConsensusParams.ValidatorJailEpochLength,
 		config.ConsensusParams.UndelegatePeriod,
-		config.ConsensusParams.MinValidatorStakeAmount * 1e18,
-		config.ConsensusParams.MinStakingAmount * 1e18,
+		config.ConsensusParams.MinValidatorStakeAmount,
+		config.ConsensusParams.MinStakingAmount,
 	})
 	invokeConstructorOrPanic(genesis, slashingIndicatorAddress, slashingIndicatorRawArtifact, []string{}, []interface{}{})
 	invokeConstructorOrPanic(genesis, systemRewardAddress, systemRewardRawArtifact, []string{"address"}, []interface{}{
