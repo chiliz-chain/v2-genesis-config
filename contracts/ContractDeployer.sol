@@ -9,6 +9,8 @@ contract ContractDeployer is IContractDeployer, InjectorContextHolder {
     event DeployerRemoved(address indexed account);
     event DeployerBanned(address indexed account);
     event DeployerUnbanned(address indexed account);
+    event ContractDisabled(address indexed contractAddress);
+    event ContractEnabled(address indexed contractAddress);
 
     event ContractDeployed(address indexed account, address impl);
 
@@ -126,5 +128,31 @@ contract ContractDeployer is IContractDeployer, InjectorContextHolder {
         // check that contract is not disabled
         SmartContract memory dc = _smartContracts[impl];
         require(dc.state != ContractState.Disabled, "Deployer: contract is not enabled");
+    }
+
+    function disableContract(address impl) public onlyFromGovernance virtual override {
+        _disableContract(impl);
+    }
+
+    function enableContract(address impl) public onlyFromGovernance virtual override {
+        _enableContract(impl);
+    }
+
+    function _disableContract(address contractAdress) internal {
+        SmartContract memory dc = _smartContracts[contractAdress];
+        require(dc.state == ContractState.Enabled, "Deployer: contract already disabled");
+        dc.state = ContractState.Disabled;
+        _smartContracts[contractAdress] = dc;
+        //emit event
+        emit ContractDisabled(contractAdress);
+    }
+
+    function _enableContract(address contractAdress) internal {
+        SmartContract memory dc = _smartContracts[contractAdress];
+        require(dc.state == ContractState.Disabled, "Deployer: contract already enabled");
+        dc.state = ContractState.Enabled;
+        _smartContracts[contractAdress] = dc;
+        //emit event
+        emit ContractEnabled(contractAdress);
     }
 }
