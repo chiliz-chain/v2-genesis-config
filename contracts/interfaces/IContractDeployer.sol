@@ -18,4 +18,8 @@ interface IContractDeployer is IEvmHooks {
     function unbanDeployer(address account) external;
 
     function removeDeployer(address account) external;
+
+    function disableContract(address contractAddress) external;
+    
+    function enableContract(address contractAddress) external;
 }

@@ -31,4 +31,12 @@ contract FakeContractDeployer is ContractDeployer {
     function checkContractActive(address impl) external view override {
         _checkContractActive(impl);
     }
+
+    function disableContract(address impl) public override {
+        _disableContract(impl);
+    }
+
+    function enableContract(address impl) public override {
+        _enableContract(impl);
+    }
 }

@@ -23,6 +23,29 @@ contract("ContractDeployer", async (accounts) => {
     assert.equal(r2.logs[0].args.account, '0x0000000000000000000000000000000000000001')
     assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000001'), false)
   });
+  it("disable/enable smart contract", async () => {
+    const from = '0x0000000000000000000000000000000000000001';  
+    const {deployer} = await newMockContract(from, {
+        genesisDeployers: [
+          '0x0000000000000000000000000000000000000001',
+        ],
+      });
+    const r1 = await deployer.registerDeployedContract(from, '0x0000000000000000000000000000000000000222');
+    assert.equal(r1.logs[0].event, 'ContractDeployed');
+    let contract = await deployer.getContractState('0x0000000000000000000000000000000000000222');
+
+    assert.equal(contract.state, '1');
+
+    //disable contract
+    const r2 = await deployer.disableContract('0x0000000000000000000000000000000000000222');
+    contract = await deployer.getContractState('0x0000000000000000000000000000000000000222');
+    assert.equal(contract.state, '2');
+
+    //enable contract
+    const r3 = await deployer.enableContract('0x0000000000000000000000000000000000000222');
+    contract = await deployer.getContractState('0x0000000000000000000000000000000000000222');
+    assert.equal(contract.state, '1');
+  });
   it("contract deployment is not possible w/o whitelist", async () => {
     const {deployer} = await newMockContract(owner);
     // try to register w/o whitelist
