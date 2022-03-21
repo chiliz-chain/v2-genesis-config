@@ -1,13 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.0;
 
-import "./IStaking.sol";
 import "./ISlashingIndicator.sol";
 import "./ISystemReward.sol";
-import "./IContractDeployer.sol";
 import "./IGovernance.sol";
+import "./IStaking.sol";
+import "./IDeployerProxy.sol";
+import "./IStakingPool.sol";
+import "./IChainConfig.sol";
 
 interface IInjector {
+
+    function init() external;
+
+    function isInitialized() external view returns (bool);
+
+    function getSystemContracts() external view returns (address[] memory);
 
     function getStaking() external view returns (IStaking);
 
@@ -15,7 +23,9 @@ interface IInjector {
 
     function getSystemReward() external view returns (ISystemReward);
 
-    function getContractDeployer() external view returns (IContractDeployer);
+    function getStakingPool() external view returns (IStakingPool);
 
     function getGovernance() external view returns (IGovernance);
+
+    function getChainConfig() external view returns (IChainConfig);
 }
