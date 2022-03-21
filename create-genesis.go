@@ -316,6 +316,7 @@ var devnetConfig = genesisConfig{
 		MinValidatorStakeAmount:  1,
 		MinStakingAmount:         1,
 	},
+	InitialStake: 1_000_000,
 	// owner of the governance
 	VotingPeriod: 20, // 1 minute
 	// faucet
@@ -349,6 +350,7 @@ var testnetConfig = genesisConfig{
 		MinValidatorStakeAmount:  1,     // how many tokens validator must stake to create a validator (in ether)
 		MinStakingAmount:         1,     // minimum staking amount for delegators (in ether)
 	},
+	InitialStake: 1_000_000,
 	// owner of the governance
 	VotingPeriod: 60, // 3 minutes
 	// faucet
