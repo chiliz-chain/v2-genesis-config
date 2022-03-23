@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/eth/tracers"
 	"io/fs"
 	"io/ioutil"
 	"math/big"
@@ -11,6 +12,8 @@ import (
 	"strings"
 	"unicode"
 	"unsafe"
+
+	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
 
 	"github.com/ethereum/go-ethereum/crypto"
 
@@ -83,7 +86,14 @@ func simulateSystemContract(genesis *core.Genesis, systemContract common.Address
 	txContext := core.NewEVMTxContext(
 		types.NewMessage(common.Address{}, &systemContract, 0, big.NewInt(0), 10_000_000, big.NewInt(0), []byte{}, nil, false),
 	)
-	evm := vm.NewEVM(blockContext, txContext, statedb, genesis.Config, vm.Config{})
+	tracer, err := tracers.New("callTracer", nil)
+	if err != nil {
+		return err
+	}
+	evm := vm.NewEVM(blockContext, txContext, statedb, genesis.Config, vm.Config{
+		Debug:  true,
+		Tracer: tracer,
+	})
 	deployedBytecode, _, err := evm.CreateWithAddress(vm.AccountRef(common.Address{}), bytecode, 10_000_000, big.NewInt(0), systemContract)
 	if err != nil {
 		for _, c := range deployedBytecode[64:] {
@@ -107,7 +117,7 @@ func simulateSystemContract(genesis *core.Genesis, systemContract common.Address
 	}
 	genesis.Alloc[systemContract] = genesisAccount
 	// make sure ctor working fine (better to fail here instead of in consensus engine)
-	errorCode, _, err := evm.Call(vm.AccountRef(common.Address{}), systemContract, hexutil.MustDecode("0xe1c7392a"), 1_000_000, big.NewInt(0))
+	errorCode, _, err := evm.Call(vm.AccountRef(common.Address{}), systemContract, hexutil.MustDecode("0xe1c7392a"), 10_000_000, big.NewInt(0))
 	if err != nil {
 		for _, c := range errorCode[64:] {
 			if c >= 32 && c <= unicode.MaxASCII {
@@ -215,7 +225,7 @@ func createGenesisConfig(config genesisConfig, targetFile string) error {
 	invokeConstructorOrPanic(genesis, stakingAddress, stakingRawArtifact, []string{"address[]", "uint16", "uint256"}, []interface{}{
 		config.Validators,
 		uint16(config.CommissionRate),
-		big.NewInt(config.InitialStake),
+		new(big.Int).Mul(big.NewInt(config.InitialStake), big.NewInt(1e18)),
 	})
 	invokeConstructorOrPanic(genesis, chainConfigAddress, chainConfigRawArtifact, []string{"uint32", "uint32", "uint32", "uint32", "uint32", "uint32", "uint64", "uint64"}, []interface{}{
 		config.ConsensusParams.ActiveValidatorsLength,
