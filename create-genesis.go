@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	systemcontract2 "github.com/ethereum/go-ethereum/common/systemcontract"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"io/fs"
 	"io/ioutil"
@@ -257,7 +258,9 @@ func createGenesisConfig(config genesisConfig, targetFile string) error {
 	invokeConstructorOrPanic(genesis, governanceAddress, governanceRawArtifact, []string{"uint256"}, []interface{}{
 		big.NewInt(config.VotingPeriod),
 	})
-	invokeConstructorOrPanic(genesis, runtimeUpgradeAddress, runtimeUpgradeRawArtifact, []string{}, []interface{}{})
+	invokeConstructorOrPanic(genesis, runtimeUpgradeAddress, runtimeUpgradeRawArtifact, []string{"address"}, []interface{}{
+		systemcontract2.EvmHookRuntimeUpgradeAddress,
+	})
 	invokeConstructorOrPanic(genesis, deployerProxyAddress, deployerProxyRawArtifact, []string{"address[]"}, []interface{}{
 		config.Deployers,
 	})
@@ -345,9 +348,9 @@ var devnetConfig = genesisConfig{
 	VotingPeriod: 20, // 1 minute
 	// faucet
 	Faucet: map[common.Address]string{
-		common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"): "0x21e19e0c9bab2400000", // dmitry
-		common.HexToAddress("0x57BA24bE2cF17400f37dB3566e839bfA6A2d018a"): "0x21e19e0c9bab2400000", // chiliz
-		common.HexToAddress("0xEbCf9D06cf9333706E61213F17A795B2F7c55F1b"): "0x21e19e0c9bab2400000", // chiliz
+		common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"): "0x21e19e0c9bab2400000",
+		common.HexToAddress("0x57BA24bE2cF17400f37dB3566e839bfA6A2d018a"): "0x21e19e0c9bab2400000",
+		common.HexToAddress("0xEbCf9D06cf9333706E61213F17A795B2F7c55F1b"): "0x21e19e0c9bab2400000",
 	},
 }
 
