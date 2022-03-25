@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./Injector.sol";
 
-contract ContractDeployer is IContractDeployer, InjectorContextHolder {
+contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
 
     event DeployerAdded(address indexed account);
     event DeployerRemoved(address indexed account);
@@ -35,7 +35,10 @@ contract ContractDeployer is IContractDeployer, InjectorContextHolder {
     mapping(address => Deployer) private _contractDeployers;
     mapping(address => SmartContract) private _smartContracts;
 
-    constructor(address[] memory deployers) {
+    constructor(bytes memory ctor) InjectorContextHolder(ctor) {
+    }
+
+    function ctor(address[] memory deployers) external whenNotInitialized {
         for (uint256 i = 0; i < deployers.length; i++) {
             _addDeployer(deployers[i]);
         }
@@ -138,21 +141,21 @@ contract ContractDeployer is IContractDeployer, InjectorContextHolder {
         _enableContract(impl);
     }
 
-    function _disableContract(address contractAdress) internal {
-        SmartContract memory dc = _smartContracts[contractAdress];
+    function _disableContract(address contractAddress) internal {
+        SmartContract memory dc = _smartContracts[contractAddress];
         require(dc.state == ContractState.Enabled, "Deployer: contract already disabled");
         dc.state = ContractState.Disabled;
-        _smartContracts[contractAdress] = dc;
+        _smartContracts[contractAddress] = dc;
         //emit event
-        emit ContractDisabled(contractAdress);
+        emit ContractDisabled(contractAddress);
     }
 
-    function _enableContract(address contractAdress) internal {
-        SmartContract memory dc = _smartContracts[contractAdress];
+    function _enableContract(address contractAddress) internal {
+        SmartContract memory dc = _smartContracts[contractAddress];
         require(dc.state == ContractState.Disabled, "Deployer: contract already enabled");
         dc.state = ContractState.Enabled;
-        _smartContracts[contractAdress] = dc;
+        _smartContracts[contractAddress] = dc;
         //emit event
-        emit ContractEnabled(contractAdress);
+        emit ContractEnabled(contractAddress);
     }
 }

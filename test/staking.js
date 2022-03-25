@@ -40,14 +40,12 @@ contract("Staking", async (accounts) => {
     assert.equal(res.logs[0].args.validator, validator1);
     assert.equal(res.logs[0].args.staker, staker1);
     assert.equal(res.logs[0].args.amount.toString(), '1000000000000000000');
-    assert.equal(res.logs[0].args.epoch.toString(), '1');
     result = await parlia.getValidatorDelegation(validator1, staker1);
     assert.equal(result.delegatedAmount.toString(), '1000000000000000000')
     res = await parlia.delegate(validator1, {from: staker2, value: '1000000000000000000'});
     assert.equal(res.logs[0].args.validator, validator1);
     assert.equal(res.logs[0].args.staker, staker2);
     assert.equal(res.logs[0].args.amount.toString(), '1000000000000000000');
-    assert.equal(res.logs[0].args.epoch.toString(), '1');
     result = await parlia.getValidatorDelegation(validator1, staker2);
     assert.equal(result.delegatedAmount.toString(), '1000000000000000000')
     // check validator status
@@ -445,7 +443,6 @@ contract("Staking", async (accounts) => {
     const costOfClaims = [1, 10]
     for (const blocks of costOfClaims) {
       for (let i = 0; i < blocks; i++) {
-        console.log(`Depositing 1 ether: ${i}/${blocks}`);
         await parlia.deposit(validator1, {from: validator1, value: '1000000000000000000'}); // 1.0
       }
       const result = await parlia.claimDelegatorFee(validator1, {from: staker1})

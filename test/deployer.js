@@ -7,7 +7,7 @@
 
 const {newMockContract, expectError} = require('./helper')
 
-contract("ContractDeployer", async (accounts) => {
+contract("DeployerProxy", async (accounts) => {
   const [owner] = accounts;
   it("add remove deployer", async () => {
     const {deployer} = await newMockContract(owner);
@@ -24,25 +24,24 @@ contract("ContractDeployer", async (accounts) => {
     assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000001'), false)
   });
   it("disable/enable smart contract", async () => {
-    const from = '0x0000000000000000000000000000000000000001';  
+    const from = '0x0000000000000000000000000000000000000001';
     const {deployer} = await newMockContract(from, {
-        genesisDeployers: [
-          '0x0000000000000000000000000000000000000001',
-        ],
-      });
+      genesisDeployers: [from],
+    });
     const r1 = await deployer.registerDeployedContract(from, '0x0000000000000000000000000000000000000222');
     assert.equal(r1.logs[0].event, 'ContractDeployed');
     let contract = await deployer.getContractState('0x0000000000000000000000000000000000000222');
-
     assert.equal(contract.state, '1');
-
     //disable contract
+
     const r2 = await deployer.disableContract('0x0000000000000000000000000000000000000222');
+    assert.equal(r2.logs[0].event, 'ContractDisabled');
     contract = await deployer.getContractState('0x0000000000000000000000000000000000000222');
     assert.equal(contract.state, '2');
 
     //enable contract
     const r3 = await deployer.enableContract('0x0000000000000000000000000000000000000222');
+    assert.equal(r3.logs[0].event, 'ContractEnabled');
     contract = await deployer.getContractState('0x0000000000000000000000000000000000000222');
     assert.equal(contract.state, '1');
   });

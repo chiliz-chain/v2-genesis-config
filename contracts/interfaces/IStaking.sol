@@ -5,6 +5,10 @@ import "./IValidatorSet.sol";
 
 interface IStaking is IValidatorSet {
 
+    function currentEpoch() external view returns (uint64);
+
+    function nextEpoch() external view returns (uint64);
+
     function isValidatorActive(address validator) external view returns (bool);
 
     function isValidator(address validator) external view returns (bool);
@@ -16,7 +20,8 @@ interface IStaking is IValidatorSet {
         uint32 slashesCount,
         uint64 changedAt,
         uint64 jailedBefore,
-        uint64 claimedAt
+        uint64 claimedAt,
+        uint16 commissionRate
     );
 
     function getValidatorStatusAtEpoch(address validator, uint64 epoch) external view returns (
@@ -26,7 +31,8 @@ interface IStaking is IValidatorSet {
         uint32 slashesCount,
         uint64 changedAt,
         uint64 jailedBefore,
-        uint64 claimedAt
+        uint64 claimedAt,
+        uint16 commissionRate
     );
 
     function getValidatorByOwner(address owner) external view returns (address);
