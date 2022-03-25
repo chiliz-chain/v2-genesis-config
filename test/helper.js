@@ -1,16 +1,19 @@
 /** @var web3 {Web3} */
 const BigNumber = require("bignumber.js");
+const {keccak256} = require('ethereumjs-util');
+const AbiCoder = require('web3-eth-abi');
 
 const ChainConfig = artifacts.require("ChainConfig");
 const Staking = artifacts.require("Staking");
 const SlashingIndicator = artifacts.require("SlashingIndicator");
 const SystemReward = artifacts.require("SystemReward");
-
-const ContractDeployer = artifacts.require("ContractDeployer");
 const Governance = artifacts.require("Governance");
-
-const FakeContractDeployer = artifacts.require("FakeContractDeployer");
+const StakingPool = artifacts.require("StakingPool");
+const RuntimeUpgrade = artifacts.require("RuntimeUpgrade");
+const DeployerProxy = artifacts.require("DeployerProxy");
 const FakeStaking = artifacts.require("FakeStaking");
+const FakeDeployerProxy = artifacts.require("FakeDeployerProxy");
+const FakeRuntimeUpgrade = artifacts.require("FakeRuntimeUpgrade");
 
 const DEFAULT_MOCK_PARAMS = {
   systemTreasury: '0x0000000000000000000000000000000000000000',
@@ -22,8 +25,9 @@ const DEFAULT_MOCK_PARAMS = {
   undelegatePeriod: '0',
   minValidatorStakeAmount: '1',
   minStakingAmount: '1',
-  genesisDeployers: [],
   genesisValidators: [],
+  genesisDeployers: [],
+  runtimeUpgradeEvmHook: '0x0000000000000000000000000000000000000000',
 };
 
 const DEFAULT_CONTRACT_TYPES = {
@@ -31,9 +35,17 @@ const DEFAULT_CONTRACT_TYPES = {
   Staking: Staking,
   SlashingIndicator: SlashingIndicator,
   SystemReward: SystemReward,
-  ContractDeployer: ContractDeployer,
   Governance: Governance,
+  StakingPool: StakingPool,
+  RuntimeUpgrade: RuntimeUpgrade,
+  DeployerProxy: DeployerProxy,
 };
+
+const createConstructorArgs = (types, args) => {
+  const params = AbiCoder.encodeParameters(types, args)
+  const sig = '0x' + keccak256(Buffer.from('ctor(' + types.join(',') + ')')).toString('hex').substring(0, 8)
+  return sig + params.substring(2)
+}
 
 const newContractUsingTypes = async (owner, params, types = {}) => {
   const {
@@ -41,38 +53,48 @@ const newContractUsingTypes = async (owner, params, types = {}) => {
     Staking,
     SlashingIndicator,
     SystemReward,
-    ContractDeployer,
-    Governance
+    Governance,
+    StakingPool,
+    RuntimeUpgrade,
+    DeployerProxy,
   } = Object.assign({}, DEFAULT_CONTRACT_TYPES, types)
   const {
+    genesisDeployers,
     systemTreasury,
     activeValidatorsLength,
     epochBlockInterval,
     misdemeanorThreshold,
     felonyThreshold,
     validatorJailEpochLength,
-    genesisDeployers,
     genesisValidators,
     undelegatePeriod,
     minValidatorStakeAmount,
     minStakingAmount,
+    runtimeUpgradeEvmHook,
   } = Object.assign({}, DEFAULT_MOCK_PARAMS, params)
   // factory contracts
-  const staking = await Staking.new(genesisValidators);
-  const slashingIndicator = await SlashingIndicator.new();
-  const systemReward = await SystemReward.new(systemTreasury);
-  const contractDeployer = await ContractDeployer.new(genesisDeployers);
-  const governance = await Governance.new(1);
-  const chainConfig = await ChainConfig.new(activeValidatorsLength, epochBlockInterval, misdemeanorThreshold, felonyThreshold, validatorJailEpochLength, undelegatePeriod, minValidatorStakeAmount, minStakingAmount);
+  const staking = await Staking.new(createConstructorArgs(['address[]', 'uint256[]', 'uint16'], [genesisValidators, genesisValidators.map(() => '0'), '0']));
+  const slashingIndicator = await SlashingIndicator.new(createConstructorArgs([], []));
+  const systemReward = await SystemReward.new(createConstructorArgs(['address'], [systemTreasury]));
+  const governance = await Governance.new(createConstructorArgs(['uint256'], ['1']));
+  const chainConfig = await ChainConfig.new(createConstructorArgs(
+    ["uint32", "uint32", "uint32", "uint32", "uint32", "uint32", "uint64", "uint64"],
+    [activeValidatorsLength, epochBlockInterval, misdemeanorThreshold, felonyThreshold, validatorJailEpochLength, undelegatePeriod, minValidatorStakeAmount, minStakingAmount])
+  );
+  const stakingPool = await StakingPool.new(createConstructorArgs([], []));
+  const runtimeUpgrade = await RuntimeUpgrade.new(createConstructorArgs(['address'], [runtimeUpgradeEvmHook]));
+  const deployerProxy = await DeployerProxy.new(createConstructorArgs(['address[]'], [genesisDeployers]));
   // init them all
-  for (const contract of [chainConfig, staking, slashingIndicator, systemReward, contractDeployer, governance]) {
+  for (const contract of [slashingIndicator, staking, systemReward, stakingPool, governance, chainConfig, runtimeUpgrade, deployerProxy]) {
     await contract.initManually(
       staking.address,
       slashingIndicator.address,
       systemReward.address,
-      contractDeployer.address,
+      stakingPool.address,
       governance.address,
       chainConfig.address,
+      runtimeUpgrade.address,
+      deployerProxy.address,
     );
   }
   return {
@@ -80,18 +102,21 @@ const newContractUsingTypes = async (owner, params, types = {}) => {
     parlia: staking,
     slashingIndicator,
     systemReward,
-    contractDeployer,
-    deployer: contractDeployer,
+    stakingPool,
     governance,
     chainConfig,
     config: chainConfig,
+    runtimeUpgrade,
+    deployer: deployerProxy,
+    deployerProxy,
   }
 }
 
 const newMockContract = async (owner, params = {}) => {
   return newContractUsingTypes(owner, params, {
     Staking: FakeStaking,
-    ContractDeployer: FakeContractDeployer,
+    RuntimeUpgrade: FakeRuntimeUpgrade,
+    DeployerProxy: FakeDeployerProxy,
   });
 }
 
@@ -158,5 +183,6 @@ module.exports = {
   extractTxCost,
   waitForNextEpoch,
   advanceBlock,
+  createConstructorArgs,
   advanceBlocks,
 }
