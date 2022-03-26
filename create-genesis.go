@@ -372,11 +372,11 @@ var testnetConfig = genesisConfig{
 	SystemTreasury: common.HexToAddress(""), // WE NEED AN ACCOUNT HERE
 	ConsensusParams: consensusParams{
 		ActiveValidatorsLength:   5,
-		EpochBlockInterval:       200, // (~1hour)
-		MisdemeanorThreshold:     100, // missed blocks per epoch
-		FelonyThreshold:          200, // missed blocks per epoch
-		ValidatorJailEpochLength: 6,   // nb of epochs
-		UndelegatePeriod:         1,   // nb of epochs
+		EpochBlockInterval:       1200, // (~1hour)
+		MisdemeanorThreshold:     100,  // missed blocks per epoch
+		FelonyThreshold:          200,  // missed blocks per epoch
+		ValidatorJailEpochLength: 6,    // nb of epochs
+		UndelegatePeriod:         1,    // nb of epochs
 		MinValidatorStakeAmount:  1000,
 		MinStakingAmount:         1,
 	},
