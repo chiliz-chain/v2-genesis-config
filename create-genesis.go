@@ -371,7 +371,7 @@ var testnetConfig = genesisConfig{
 		common.HexToAddress("0x49c0f7c8c11a4c80dc6449efe1010bb166818da8"),
 		common.HexToAddress("0x8e1ea6eaa09c3b40f4a51fcd056a031870a0549a"),
 	},
-	SystemTreasury: common.HexToAddress(""), // WE NEED AN ACCOUNT HERE
+	SystemTreasury: common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"), // WE NEED AN ACCOUNT HERE
 	ConsensusParams: consensusParams{
 		ActiveValidatorsLength:   5,
 		EpochBlockInterval:       1200, // (~1hour)
