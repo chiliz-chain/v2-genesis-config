@@ -137,7 +137,8 @@ contract Staking is IStaking, InjectorContextHolder {
         uint64 changedAt,
         uint64 jailedBefore,
         uint64 claimedAt,
-        uint16 commissionRate
+        uint16 commissionRate,
+        uint96 totalRewards
     ) {
         Validator memory validator = _validatorsMap[validatorAddress];
         ValidatorSnapshot memory snapshot = _validatorSnapshots[validator.validatorAddress][validator.changedAt];
@@ -149,7 +150,8 @@ contract Staking is IStaking, InjectorContextHolder {
         changedAt = validator.changedAt,
         jailedBefore = validator.jailedBefore,
         claimedAt = validator.claimedAt,
-        commissionRate = snapshot.commissionRate
+        commissionRate = snapshot.commissionRate,
+        totalRewards = snapshot.totalRewards
         );
     }
 
@@ -161,7 +163,8 @@ contract Staking is IStaking, InjectorContextHolder {
         uint64 changedAt,
         uint64 jailedBefore,
         uint64 claimedAt,
-        uint16 commissionRate
+        uint16 commissionRate,
+        uint96 totalRewards
     ) {
         Validator memory validator = _validatorsMap[validatorAddress];
         ValidatorSnapshot memory snapshot = _touchValidatorSnapshotImmutable(validator, epoch);
@@ -173,7 +176,8 @@ contract Staking is IStaking, InjectorContextHolder {
         changedAt = validator.changedAt,
         jailedBefore = validator.jailedBefore,
         claimedAt = validator.claimedAt,
-        commissionRate = snapshot.commissionRate
+        commissionRate = snapshot.commissionRate,
+        totalRewards = snapshot.totalRewards
         );
     }
 
