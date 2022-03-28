@@ -4,8 +4,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	systemcontract2 "github.com/ethereum/go-ethereum/common/systemcontract"
-	"github.com/ethereum/go-ethereum/eth/tracers"
 	"io/fs"
 	"io/ioutil"
 	"math/big"
@@ -13,6 +11,10 @@ import (
 	"strings"
 	"unicode"
 	"unsafe"
+
+	systemcontract2 "github.com/ethereum/go-ethereum/common/systemcontract"
+
+	"github.com/ethereum/go-ethereum/eth/tracers"
 
 	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
 
@@ -335,14 +337,14 @@ var devnetConfig = genesisConfig{
 	},
 	SystemTreasury: common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"),
 	ConsensusParams: consensusParams{
-		ActiveValidatorsLength:   1,
-		EpochBlockInterval:       100,
-		MisdemeanorThreshold:     10,
-		FelonyThreshold:          100,
-		ValidatorJailEpochLength: 1,
-		UndelegatePeriod:         0,
-		MinValidatorStakeAmount:  1,
-		MinStakingAmount:         1,
+		ActiveValidatorsLength:   25, // suggested values are (3k+1, where k is honest validators, even better): 7, 13, 19, 25, 31...
+		EpochBlockInterval:       40, // better to use 1 day epoch (86400/3=28800, where 3s is block time)
+		MisdemeanorThreshold:     5,  // after missing this amount of blocks per day validator losses all daily rewards (penalty)
+		FelonyThreshold:          10, // after missing this amount of blocks per day validator goes in jail for N epochs
+		ValidatorJailEpochLength: 3,  // how many epochs validator should stay in jail (7 epochs = ~7 days)
+		UndelegatePeriod:         2,  // allow claiming funds only after 6 epochs (~7 days)
+		MinValidatorStakeAmount:  1,  // how many tokens validator must stake to create a validator (in ether)
+		MinStakingAmount:         2,  // minimum staking amount for delegators (in ether)
 	},
 	InitialStakes: map[common.Address]string{
 		common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"): "0x3635c9adc5dea00000", // 1000 eth
@@ -358,7 +360,7 @@ var devnetConfig = genesisConfig{
 }
 
 var testnetConfig = genesisConfig{
-	Genesis: defaultGenesisConfig(17242),
+	Genesis: defaultGenesisConfig(88880),
 	// who is able to deploy smart contract from genesis block (it won't generate event log)
 	Deployers: []common.Address{},
 	// list of default validators (it won't generate event log)
@@ -369,26 +371,25 @@ var testnetConfig = genesisConfig{
 		common.HexToAddress("0x49c0f7c8c11a4c80dc6449efe1010bb166818da8"),
 		common.HexToAddress("0x8e1ea6eaa09c3b40f4a51fcd056a031870a0549a"),
 	},
-	SystemTreasury: common.HexToAddress(""),
+	SystemTreasury: common.HexToAddress(""), // WE NEED AN ACCOUNT HERE
 	ConsensusParams: consensusParams{
-		ActiveValidatorsLength:   25,    // suggested values are (3k+1, where k is honest validators, even better): 7, 13, 19, 25, 31...
-		EpochBlockInterval:       28800, // better to use 1 day epoch (86400/3=28800, where 3s is block time)
-		MisdemeanorThreshold:     50,    // after missing this amount of blocks per day validator losses all daily rewards (penalty)
-		FelonyThreshold:          150,   // after missing this amount of blocks per day validator goes in jail for N epochs
-		ValidatorJailEpochLength: 7,     // how many epochs validator should stay in jail (7 epochs = ~7 days)
-		UndelegatePeriod:         6,     // allow claiming funds only after 6 epochs (~7 days)
-		MinValidatorStakeAmount:  1,     // how many tokens validator must stake to create a validator (in ether)
-		MinStakingAmount:         1,     // minimum staking amount for delegators (in ether)
+		ActiveValidatorsLength:   5,
+		EpochBlockInterval:       1200, // (~1hour)
+		MisdemeanorThreshold:     100,  // missed blocks per epoch
+		FelonyThreshold:          200,  // missed blocks per epoch
+		ValidatorJailEpochLength: 6,    // nb of epochs
+		UndelegatePeriod:         1,    // nb of epochs
+		MinValidatorStakeAmount:  1000,
+		MinStakingAmount:         1,
 	},
+	VotingPeriod: 1200, // (~1hour)
 	InitialStakes: map[common.Address]string{
-		common.HexToAddress("0x08fae3885e299c24ff9841478eb946f41023ac69"): "0x3635c9adc5dea00000", // 1000 eth
-		common.HexToAddress("0x751aaca849b09a3e347bbfe125cf18423cc24b40"): "0x3635c9adc5dea00000", // 1000 eth
-		common.HexToAddress("0xa6ff33e3250cc765052ac9d7f7dfebda183c4b9b"): "0x3635c9adc5dea00000", // 1000 eth
-		common.HexToAddress("0x49c0f7c8c11a4c80dc6449efe1010bb166818da8"): "0x3635c9adc5dea00000", // 1000 eth
-		common.HexToAddress("0x8e1ea6eaa09c3b40f4a51fcd056a031870a0549a"): "0x3635c9adc5dea00000", // 1000 eth
+		common.HexToAddress("0x08fae3885e299c24ff9841478eb946f41023ac69"): "0x152D02C7E14AF6800000", // 100 000 eth
+		common.HexToAddress("0x751aaca849b09a3e347bbfe125cf18423cc24b40"): "0x3635C9ADC5DEA00000",   // 1000 eth
+		common.HexToAddress("0xa6ff33e3250cc765052ac9d7f7dfebda183c4b9b"): "0x3635C9ADC5DEA00000",   // 1000 eth
+		common.HexToAddress("0x49c0f7c8c11a4c80dc6449efe1010bb166818da8"): "0x3635C9ADC5DEA00000",   // 1000 eth
+		common.HexToAddress("0x8e1ea6eaa09c3b40f4a51fcd056a031870a0549a"): "0x2B5E3AF16B1880000",    // 50 eth
 	},
-	// owner of the governance
-	VotingPeriod: 60, // 3 minutes
 	// faucet
 	Faucet: map[common.Address]string{
 		common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"): "0x21e19e0c9bab2400000",    // governance
@@ -396,6 +397,7 @@ var testnetConfig = genesisConfig{
 		common.HexToAddress("0x57BA24bE2cF17400f37dB3566e839bfA6A2d018a"): "0x21e19e0c9bab2400000",    // chiliz
 		common.HexToAddress("0xEbCf9D06cf9333706E61213F17A795B2F7c55F1b"): "0x21e19e0c9bab2400000",    // chiliz
 		common.HexToAddress("0xb891fe7b38f857f53a7b5529204c58d5c487280b"): "0x52b7d2dcc80cd2e4000000", // faucet (10kk)
+		common.HexToAddress("0xb37aa4955c3a6ead8e81fd7950f0e15d23129202"): "0x21e19e0c9bab2400000",    // chiliz
 	},
 }
 
