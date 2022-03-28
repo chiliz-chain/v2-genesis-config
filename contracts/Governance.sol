@@ -48,6 +48,19 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         return Governor.propose(targets, values, calldatas, description);
     }
 
+    function execute(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        bytes32 descriptionHash
+    ) public payable virtual override onlyValidatorOwner returns (uint256) {
+        return Governor.execute(targets, values, calldatas, descriptionHash);
+    }
+
+    function castVote(uint256 proposalId, uint8 support) public virtual override onlyValidatorOwner returns (uint256) {
+        return Governor.castVote(proposalId, support);
+    }
+
     modifier onlyValidatorOwner() {
         address validatorAddress = _stakingContract.getValidatorByOwner(msg.sender);
         require(_stakingContract.isValidatorActive(validatorAddress), "Governance: only validator owner");
