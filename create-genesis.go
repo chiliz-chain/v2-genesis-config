@@ -366,14 +366,16 @@ var devnetConfig = genesisConfig{
 var testnetConfig = genesisConfig{
 	Genesis: defaultGenesisConfig(88880),
 	// who is able to deploy smart contract from genesis block (it won't generate event log)
-	Deployers: []common.Address{},
+    Deployers: []common.Address{
+		common.HexToAddress("0x54E98ee51446505fcf69093E015Ee36034321104"),
+	},
 	// list of default validators (it won't generate event log)
 	Validators: []common.Address{
-		common.HexToAddress("0x08fae3885e299c24ff9841478eb946f41023ac69"),
-		common.HexToAddress("0x751aaca849b09a3e347bbfe125cf18423cc24b40"),
-		common.HexToAddress("0xa6ff33e3250cc765052ac9d7f7dfebda183c4b9b"),
-		common.HexToAddress("0x49c0f7c8c11a4c80dc6449efe1010bb166818da8"),
-		common.HexToAddress("0x8e1ea6eaa09c3b40f4a51fcd056a031870a0549a"),
+		common.HexToAddress("0x86d12897C56Fe1dB08BDfB84Bc90f458ee7dC5cE"),
+		common.HexToAddress("0xE45D81a7EF9456A254aa4db010AAF6601a15B5B7"),
+		common.HexToAddress("0x76106F0857938684D24f2CE167EE11607dFaa57d"),
+		common.HexToAddress("0x48223C151df5dc1dBc2E24f17e77728358113705"),
+		common.HexToAddress("0x49CfDafF386FD2683d28678aBd53F11Dec23c76C"),
 	},
 	CommissionRate: 2000,
 	SystemTreasury: common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"),
@@ -390,19 +392,16 @@ var testnetConfig = genesisConfig{
 	},
 	VotingPeriod: 1200, // (~1hour)
 	InitialStakes: map[common.Address]string{
-		common.HexToAddress("0x08fae3885e299c24ff9841478eb946f41023ac69"): "0x152D02C7E14AF6800000", // 100 000 eth
-		common.HexToAddress("0x751aaca849b09a3e347bbfe125cf18423cc24b40"): "0x3635C9ADC5DEA00000",   // 1000 eth
-		common.HexToAddress("0xa6ff33e3250cc765052ac9d7f7dfebda183c4b9b"): "0x3635C9ADC5DEA00000",   // 1000 eth
-		common.HexToAddress("0x49c0f7c8c11a4c80dc6449efe1010bb166818da8"): "0x3635C9ADC5DEA00000",   // 1000 eth
-		common.HexToAddress("0x8e1ea6eaa09c3b40f4a51fcd056a031870a0549a"): "0x2B5E3AF16B1880000",    // 50 eth
+		common.HexToAddress("0x86d12897C56Fe1dB08BDfB84Bc90f458ee7dC5cE"): "0x152D02C7E14AF6800000", // 100 000 eth
+		common.HexToAddress("0xE45D81a7EF9456A254aa4db010AAF6601a15B5B7"): "0x3635C9ADC5DEA00000",   // 1000 eth
+		common.HexToAddress("0x76106F0857938684D24f2CE167EE11607dFaa57d"): "0x3635C9ADC5DEA00000",   // 1000 eth
+		common.HexToAddress("0x48223C151df5dc1dBc2E24f17e77728358113705"): "0x3635C9ADC5DEA00000",   // 1000 eth
+		common.HexToAddress("0x49CfDafF386FD2683d28678aBd53F11Dec23c76C"): "0x2B5E3AF16B1880000",    // 50 eth
 	},
 	// faucet
 	Faucet: map[common.Address]string{
-		common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"): "0x21e19e0c9bab2400000",    // governance
-		common.HexToAddress("0x57BA24bE2cF17400f37dB3566e839bfA6A2d018a"): "0x21e19e0c9bab2400000",    // chiliz
-		common.HexToAddress("0xEbCf9D06cf9333706E61213F17A795B2F7c55F1b"): "0x21e19e0c9bab2400000",    // chiliz
-		common.HexToAddress("0xb891fe7b38f857f53a7b5529204c58d5c487280b"): "0x52b7d2dcc80cd2e4000000", // faucet (10kk)
-		common.HexToAddress("0xb37aa4955c3a6ead8e81fd7950f0e15d23129202"): "0x21e19e0c9bab2400000",    // chiliz
+		common.HexToAddress("0xb0c09bF51E04eDc7Bf198D61bB74CDa886878167"): "0x197D7361310E45C669F80000",   // main
+		common.HexToAddress("0xc59181b702A7F3A8eCea27f30072B8dbCcC0c48a"): "0x33B2E3C9FD0803CE8000000",    // faucet
 	},
 }
 
