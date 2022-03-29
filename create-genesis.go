@@ -375,7 +375,8 @@ var testnetConfig = genesisConfig{
 		common.HexToAddress("0x49c0f7c8c11a4c80dc6449efe1010bb166818da8"),
 		common.HexToAddress("0x8e1ea6eaa09c3b40f4a51fcd056a031870a0549a"),
 	},
-	SystemTreasury: common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"), // WE NEED AN ACCOUNT HERE
+	CommissionRate: 2000,
+	SystemTreasury: common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"),
 	ConsensusParams: consensusParams{
 		ActiveValidatorsLength:   5,
 		EpochBlockInterval:       1200, // (~1hour)
@@ -398,7 +399,6 @@ var testnetConfig = genesisConfig{
 	// faucet
 	Faucet: map[common.Address]string{
 		common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"): "0x21e19e0c9bab2400000",    // governance
-		common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"): "0x21e19e0c9bab2400000",    // dmitry
 		common.HexToAddress("0x57BA24bE2cF17400f37dB3566e839bfA6A2d018a"): "0x21e19e0c9bab2400000",    // chiliz
 		common.HexToAddress("0xEbCf9D06cf9333706E61213F17A795B2F7c55F1b"): "0x21e19e0c9bab2400000",    // chiliz
 		common.HexToAddress("0xb891fe7b38f857f53a7b5529204c58d5c487280b"): "0x52b7d2dcc80cd2e4000000", // faucet (10kk)
