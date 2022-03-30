@@ -366,7 +366,7 @@ var devnetConfig = genesisConfig{
 var testnetConfig = genesisConfig{
 	Genesis: defaultGenesisConfig(88880),
 	// who is able to deploy smart contract from genesis block (it won't generate event log)
-    Deployers: []common.Address{
+	Deployers: []common.Address{
 		common.HexToAddress("0x54E98ee51446505fcf69093E015Ee36034321104"),
 	},
 	// list of default validators (it won't generate event log)
@@ -378,7 +378,7 @@ var testnetConfig = genesisConfig{
 		common.HexToAddress("0x49CfDafF386FD2683d28678aBd53F11Dec23c76C"),
 	},
 	CommissionRate: 2000,
-	SystemTreasury: common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"),
+	SystemTreasury: common.HexToAddress("0xde8712be934a6A4C7dDd17DC91669F51284f4b0c"),
 	ConsensusParams: consensusParams{
 		ActiveValidatorsLength:   5,
 		EpochBlockInterval:       1200, // (~1hour)
