@@ -107,17 +107,17 @@ contract Staking is IStaking, InjectorContextHolder {
     // mapping from validator owner to validator address
     mapping(address => address) internal _validatorOwners;
 
-    // list of all the validators
-    address[] internal _currentValidatorSet;
-    // just a map to speed up the search in the array
-    mapping(address => uint256) public currentValidatorSetMap;
-
     // list of all validators that are in validators mapping with status = Active
     address[] internal _activeValidatorsList;
     // mapping with stakers to validators at epoch (validator -> delegator -> delegation)
     mapping(address => mapping(address => ValidatorDelegation)) internal _validatorDelegations;
     // mapping with validator snapshots per each epoch (validator -> epoch -> snapshot)
     mapping(address => mapping(uint64 => ValidatorSnapshot)) internal _validatorSnapshots;
+
+    // list of all the validators
+    address[] internal _currentValidatorSet;
+    // just a map to speed up the search in the array
+    mapping(address => uint256) public currentValidatorSetMap;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
