@@ -482,4 +482,32 @@ contract("Staking", async (accounts) => {
       validator2,
     ])
   });
+  it.only("should remove/add validator from current set", async () => {
+    const {parlia} = await newMockContract(owner, {
+      genesisValidators: [ validator1, validator2 ],
+    });
+    let currentSet = await parlia.getCurrentValidatorSet()
+    const val1AddressIndex = (await parlia.currentValidatorSetMap(validator1)).toString();
+    const val1 = await parlia.getValidatorStatus(currentSet[val1AddressIndex-1]);
+    assert.equal(currentSet.length, 2)
+    assert.equal(val1.status, 1);
+    
+    // register new Validator - statuts is Pending = 2
+    await parlia.registerValidator(validator3, '1000', {from: owner, value: '10000000000000000000'}); // 10
+    currentSet = await parlia.getCurrentValidatorSet()
+    let val3AddressIndex = (await parlia.currentValidatorSetMap(validator3)).toString();
+    let val3 = await parlia.getValidatorStatus(currentSet[val3AddressIndex-1]);
+    assert.equal(currentSet.length, 3)
+    assert.equal(val3.status, 2);
+
+    // Remove validator 1
+    await parlia.removeValidator(validator1);
+    currentSet = await parlia.getCurrentValidatorSet()
+    assert.equal(currentSet.length, 2)
+    // val3 index should be swapped with val1 => 1
+    val3AddressIndex = (await parlia.currentValidatorSetMap(validator3)).toString();
+    val3 = await parlia.getValidatorStatus(currentSet[val3AddressIndex-1]);
+    assert.equal(val3AddressIndex, 1)
+    assert.equal(val3.status, 2);
+  });
 });

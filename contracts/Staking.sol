@@ -106,7 +106,13 @@ contract Staking is IStaking, InjectorContextHolder {
     mapping(address => Validator) internal _validatorsMap;
     // mapping from validator owner to validator address
     mapping(address => address) internal _validatorOwners;
-    // list of all validators that are in validators mapping
+
+    // list of all the validators
+    address[] internal _currentValidatorSet;
+    // just a map to speed up the search in the array
+    mapping(address => uint256) public currentValidatorSetMap;
+
+    // list of all validators that are in validators mapping with status = Active
     address[] internal _activeValidatorsList;
     // mapping with stakers to validators at epoch (validator -> delegator -> delegation)
     mapping(address => mapping(address => ValidatorDelegation)) internal _validatorDelegations;
@@ -507,12 +513,26 @@ contract Staking is IStaking, InjectorContextHolder {
         ValidatorDelegation storage delegation = _validatorDelegations[validatorAddress][validatorOwner];
         require(delegation.delegateQueue.length == 0, "Staking: delegation queue is not empty");
         delegation.delegateQueue.push(DelegationOpDelegate(uint112(initialStake / BALANCE_COMPACT_PRECISION), sinceEpoch));
+        
+        _currentValidatorSet.push(validator.validatorAddress);
+        currentValidatorSetMap[validator.validatorAddress] = _currentValidatorSet.length;
         // emit event
         emit ValidatorAdded(validatorAddress, validatorOwner, uint8(status), commissionRate);
     }
 
     function removeValidator(address account) external onlyFromGovernance virtual override {
         _removeValidator(account);
+    }
+
+    function _removeValidatorFromCurrentSet(address validatorAddress) internal {
+        uint256 indexOf = currentValidatorSetMap[validatorAddress] - 1;
+        if (indexOf >= 0) {
+            _currentValidatorSet[indexOf] = _currentValidatorSet[_currentValidatorSet.length - 1];
+            // Update mapping
+            currentValidatorSetMap[_currentValidatorSet[indexOf]] = indexOf + 1;
+            // Delete last entry
+            _currentValidatorSet.pop();
+        }
     }
 
     function _removeValidatorFromActiveList(address validatorAddress) internal {
@@ -537,7 +557,10 @@ contract Staking is IStaking, InjectorContextHolder {
         require(validator.status != ValidatorStatus.NotFound, "Staking: validator not found");
         // remove validator from active list if exists
         _removeValidatorFromActiveList(account);
+        // Remove from current set (all validators)
+        _removeValidatorFromCurrentSet(account);
         // remove from validators map
+        delete currentValidatorSetMap[account];
         delete _validatorOwners[validator.ownerAddress];
         delete _validatorsMap[account];
         // emit event about it
@@ -603,6 +626,11 @@ contract Staking is IStaking, InjectorContextHolder {
 
     function isValidator(address account) external override view returns (bool) {
         return _validatorsMap[account].status != ValidatorStatus.NotFound;
+    }
+
+    function getCurrentValidatorSet() external view returns (address[] memory) {
+        address[] memory _currentSet = _currentValidatorSet;
+        return _currentSet;
     }
 
     function _getValidators() internal view returns (address[] memory) {
