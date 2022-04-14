@@ -201,6 +201,7 @@ contract Staking is IStaking, InjectorContextHolder {
         // update validator status
         validator.status = ValidatorStatus.Active;
         _validatorsMap[validatorAddress] = validator;
+        _activeValidatorsList.push(validatorAddress);
     }
 
     function _totalDelegatedToValidator(Validator memory validator) internal view returns (uint256) {
@@ -581,6 +582,7 @@ contract Staking is IStaking, InjectorContextHolder {
     function changeValidatorOwner(address validatorAddress, address newOwner) external override {
         Validator memory validator = _validatorsMap[validatorAddress];
         require(validator.ownerAddress == msg.sender, "Staking: only validator owner");
+        require(_validatorOwners[newOwner] == address(0x00), "Staking: Owner already in use");
         delete _validatorOwners[validator.ownerAddress];
         validator.ownerAddress = newOwner;
         _validatorOwners[newOwner] = validatorAddress;
@@ -751,6 +753,7 @@ contract Staking is IStaking, InjectorContextHolder {
         if (slashesCount == _chainConfigContract.getFelonyThreshold()) {
             validator.jailedBefore = _currentEpoch() + _chainConfigContract.getValidatorJailEpochLength();
             validator.status = ValidatorStatus.Jail;
+            _removeValidatorFromActiveList(validatorAddress);
             _validatorsMap[validatorAddress] = validator;
             emit ValidatorJailed(validatorAddress, epoch);
         }
