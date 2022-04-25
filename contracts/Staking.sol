@@ -745,7 +745,7 @@ contract Staking is IStaking, InjectorContextHolder {
         return (amountToStake, claimableRewards - amountToStake);
     }
 
-    function calcAvailableForRedelegateAmount(address validator, address delegator) external view returns (uint256 amountToStake, uint256 rewardsDust) {
+    function calcAvailableForRedelegateAmount(address validator, address delegator) external view override returns (uint256 amountToStake, uint256 rewardsDust) {
         uint256 claimableRewards = _calcDelegatorRewardsAndPendingUndelegates(validator, delegator, _currentEpoch());
         return _calcAvailableForRedelegateAmount(claimableRewards);
     }
@@ -756,8 +756,6 @@ contract Staking is IStaking, InjectorContextHolder {
     }
 
     function claimDelegatorFeeAtEpoch(address validatorAddress, uint64 beforeEpoch) external override {
-        // make sure validator exists at least
-        Validator storage validator = _validatorsMap[validatorAddress];
         // make sure delegator can't claim future epochs
         require(beforeEpoch <= _currentEpoch());
         // claim all confirmed delegator fees including undelegates
