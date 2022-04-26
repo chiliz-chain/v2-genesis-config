@@ -580,6 +580,8 @@ contract Staking is IStaking, InjectorContextHolder {
         _activeValidatorsList.push(validatorAddress);
         validator.status = ValidatorStatus.Active;
         _validatorsMap[validatorAddress] = validator;
+        ValidatorSnapshot storage snapshot = _touchValidatorSnapshot(validator, _nextEpoch());
+        emit ValidatorModified(validatorAddress, validator.ownerAddress, uint8(validator.status), snapshot.commissionRate);
     }
 
     function disableValidator(address validator) external onlyFromGovernance virtual override {
@@ -592,6 +594,8 @@ contract Staking is IStaking, InjectorContextHolder {
         _removeValidatorFromActiveList(validatorAddress);
         validator.status = ValidatorStatus.Pending;
         _validatorsMap[validatorAddress] = validator;
+        ValidatorSnapshot storage snapshot = _touchValidatorSnapshot(validator, _nextEpoch());
+        emit ValidatorModified(validatorAddress, validator.ownerAddress, uint8(validator.status), snapshot.commissionRate);
     }
 
     function changeValidatorCommissionRate(address validatorAddress, uint16 commissionRate) external {
@@ -608,7 +612,7 @@ contract Staking is IStaking, InjectorContextHolder {
     function changeValidatorOwner(address validatorAddress, address newOwner) external override {
         Validator memory validator = _validatorsMap[validatorAddress];
         require(validator.ownerAddress == msg.sender, "Staking: only validator owner");
-        require(_validatorOwners[newOwner] == address(0x00), "Staking: Owner already in use");
+        require(_validatorOwners[newOwner] == address(0x00), "Staking: owner already in use");
         delete _validatorOwners[validator.ownerAddress];
         validator.ownerAddress = newOwner;
         _validatorOwners[newOwner] = validatorAddress;
