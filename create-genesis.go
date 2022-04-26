@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"math/big"
+	"os"
 	"reflect"
 	"strings"
 	"unicode"
@@ -190,15 +191,15 @@ type consensusParams struct {
 }
 
 type genesisConfig struct {
-	Genesis         *core.Genesis
-	Deployers       []common.Address
-	Validators      []common.Address
-	SystemTreasury  common.Address
-	ConsensusParams consensusParams
-	VotingPeriod    int64
-	Faucet          map[common.Address]string
-	CommissionRate  int64
-	InitialStakes   map[common.Address]string
+	Genesis         *core.Genesis             `json:"genesis"`
+	Deployers       []common.Address          `json:"deployers"`
+	Validators      []common.Address          `json:"validators"`
+	SystemTreasury  common.Address            `json:"systemTreasury"`
+	ConsensusParams consensusParams           `json:"consensusParams"`
+	VotingPeriod    int64                     `json:"votingPeriod"`
+	Faucet          map[common.Address]string `json:"faucet"`
+	CommissionRate  int64                     `json:"commissionRate"`
+	InitialStakes   map[common.Address]string `json:"initialStakes"`
 }
 
 func invokeConstructorOrPanic(genesis *core.Genesis, contract common.Address, rawArtifact []byte, typeNames []string, params []interface{}) {
@@ -400,12 +401,28 @@ var testnetConfig = genesisConfig{
 	},
 	// faucet
 	Faucet: map[common.Address]string{
-		common.HexToAddress("0xb0c09bF51E04eDc7Bf198D61bB74CDa886878167"): "0x197D7361310E45C669F80000",   // main
-		common.HexToAddress("0xc59181b702A7F3A8eCea27f30072B8dbCcC0c48a"): "0x33B2E3C9FD0803CE8000000",    // faucet
+		common.HexToAddress("0xb0c09bF51E04eDc7Bf198D61bB74CDa886878167"): "0x197D7361310E45C669F80000", // main
+		common.HexToAddress("0xc59181b702A7F3A8eCea27f30072B8dbCcC0c48a"): "0x33B2E3C9FD0803CE8000000",  // faucet
 	},
 }
 
 func main() {
+	args := os.Args[1:]
+	if len(args) == 2 {
+		fileContents, err := os.ReadFile(args[0])
+		if err != nil {
+			panic(err)
+		}
+		genesis := &genesisConfig{}
+		err = json.Unmarshal(fileContents, genesis)
+		if err != nil {
+			panic(err)
+		}
+		err = createGenesisConfig(*genesis, args[1])
+		if err != nil {
+			panic(err)
+		}
+	}
 	println("building devnet")
 	if err := createGenesisConfig(devnetConfig, "devnet.json"); err != nil {
 		panic(err)
