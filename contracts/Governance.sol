@@ -23,7 +23,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
     }
 
     function getVotingPower(address validator) external view returns (uint256) {
-        return _validatorVotingPowerAt(validator, block.number);
+        return _validatorOwnerVotingPowerAt(validator, block.number);
     }
 
     function proposeWithCustomVotingPeriod(
@@ -32,7 +32,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         bytes[] memory calldatas,
         string memory description,
         uint256 customVotingPeriod
-    ) public virtual onlyValidatorOwner returns (uint256) {
+    ) public virtual onlyValidatorOwner(msg.sender) returns (uint256) {
         _instantVotingPeriod = customVotingPeriod;
         uint256 proposalId = propose(targets, values, calldatas, description);
         _instantVotingPeriod = 0;
@@ -44,8 +44,14 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         uint256[] memory values,
         bytes[] memory calldatas,
         string memory description
-    ) public virtual override onlyValidatorOwner returns (uint256) {
+    ) public virtual override onlyValidatorOwner(msg.sender) returns (uint256) {
         return Governor.propose(targets, values, calldatas, description);
+    }
+
+    modifier onlyValidatorOwner(address account) {
+        address validatorAddress = _stakingContract.getValidatorByOwner(account);
+        require(_stakingContract.isValidatorActive(validatorAddress), "Governance: only validator owner");
+        _;
     }
 
     function execute(
@@ -53,22 +59,12 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 descriptionHash
-    ) public payable virtual override onlyValidatorOwner returns (uint256) {
+    ) public payable virtual override onlyValidatorOwner(msg.sender) returns (uint256) {
         return Governor.execute(targets, values, calldatas, descriptionHash);
     }
 
-    function castVote(uint256 proposalId, uint8 support) public virtual override onlyValidatorOwner returns (uint256) {
-        return Governor.castVote(proposalId, support);
-    }
-
-    modifier onlyValidatorOwner() {
-        address validatorAddress = _stakingContract.getValidatorByOwner(msg.sender);
-        require(_stakingContract.isValidatorActive(validatorAddress), "Governance: only validator owner");
-        _;
-    }
-
     function votingPeriod() public view override(IGovernor, GovernorSettings) returns (uint256) {
-        // let us re-defined voting period for proposers
+        // let use re-defined voting period for the proposals
         if (_instantVotingPeriod != 0) {
             return _instantVotingPeriod;
         }
@@ -76,15 +72,24 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
     }
 
     function getVotes(address account, uint256 blockNumber) public view override returns (uint256) {
-        return _validatorVotingPowerAt(account, blockNumber);
+        return _validatorOwnerVotingPowerAt(account, blockNumber);
     }
 
-    function _validatorVotingPowerAt(address validatorOwner, uint256 blockNumber) internal view returns (uint256) {
+    function _castVote(uint256 proposalId, address account, uint8 support, string memory reason) internal virtual override onlyValidatorOwner(account) returns (uint256) {
+        address validatorAddress = _stakingContract.getValidatorByOwner(account);
+        return super._castVote(proposalId, validatorAddress, support, reason);
+    }
+
+    function _validatorOwnerVotingPowerAt(address validatorOwner, uint256 blockNumber) internal view returns (uint256) {
         address validator = _stakingContract.getValidatorByOwner(validatorOwner);
-        // only active validators can vote
+        // only active validators power makes sense
         if (!_stakingContract.isValidatorActive(validator)) {
             return 0;
         }
+        return _validatorVotingPowerAt(validator, blockNumber);
+    }
+
+    function _validatorVotingPowerAt(address validator, uint256 blockNumber) internal view returns (uint256) {
         // find validator votes at block number
         uint64 epoch = uint64(blockNumber / _chainConfigContract.getEpochBlockInterval());
         (,,uint256 totalDelegated,,,,,,) = _stakingContract.getValidatorStatusAtEpoch(validator, epoch);
