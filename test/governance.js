@@ -5,7 +5,11 @@
 /** @function before */
 /** @var assert */
 
+<<<<<<< HEAD
 const {newMockContract, waitForNextEpoch, expectError} = require('./helper')
+=======
+const {newMockContract, waitForNextEpoch} = require('./helper')
+>>>>>>> origin/devel
 
 contract("Governance", async (accounts) => {
   const [owner, validator1, validator2, owner1, owner2] = accounts;
@@ -30,6 +34,7 @@ contract("Governance", async (accounts) => {
     assert.equal((await governance.getVotingPower(owner1)).toString(), '1000000000000000000');
     assert.equal((await governance.getVotingPower(owner2)).toString(), '1000000000000000000');
   });
+<<<<<<< HEAD
   it("its impossible to abuse voting processing using owner switching", async () => {
     const {parlia, governance} = await newMockContract(owner, {
       genesisValidators: [validator1, validator2],
@@ -52,4 +57,6 @@ contract("Governance", async (accounts) => {
     // state must be defeated
     assert.equal(await governance.state(proposalId), '3')
   });
+=======
+>>>>>>> origin/devel
 });
