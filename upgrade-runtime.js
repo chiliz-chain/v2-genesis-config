@@ -63,7 +63,7 @@ const sleepFor = async ms => {
 const proposalStates = ['Pending', 'Active', 'Canceled', 'Defeated', 'Succeeded', 'Queued', 'Expired', 'Executed'];
 
 (async () => {
-  const web3 = new Web3('https://rpc.dev-02.bas.ankr.com/');
+  const web3 = new Web3(process.env.WEB3_URL);
   const staking = new web3.eth.Contract(ABI_STAKING, STAKING_ADDRESS);
   const governance = new web3.eth.Contract(ABI_GOVERNANCE, GOVERNANCE_ADDRESS);
   const runtimeUpgrade = new web3.eth.Contract(ABI_RUNTIME_UPGRADE, RUNTIME_UPGRADE_ADDRESS);
