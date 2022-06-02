@@ -117,4 +117,12 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
     function proposalThreshold() public view virtual override(Governor, GovernorSettings) returns (uint256) {
         return GovernorSettings.proposalThreshold();
     }
+
+    function _hashTypedDataV4(bytes32 structHash) internal view override returns (bytes32) {
+        bytes32 typeHash = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+        bytes32 nameHash = keccak256(bytes(name()));
+        bytes32 versionHash = keccak256(bytes(version()));
+        bytes32 domainSeparator = keccak256(abi.encode(typeHash, nameHash, versionHash, block.chainid, address(this)));
+        return ECDSA.toTypedDataHash(domainSeparator, structHash);
+    }
 }
