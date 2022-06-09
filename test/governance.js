@@ -5,7 +5,40 @@
 /** @function before */
 /** @var assert */
 
+const {fromRpcSig} = require('ethereumjs-util');
+const ethSigUtil = require('eth-sig-util');
+const Wallet = require('ethereumjs-wallet').default;
+
 const {newMockContract, waitForNextEpoch, expectError} = require('./helper')
+
+const createTypedSignature = async (governance, voterBySig, message) => {
+  const EIP712Domain = [
+    {name: 'name', type: 'string'},
+    {name: 'version', type: 'string'},
+    {name: 'chainId', type: 'uint256'},
+    {name: 'verifyingContract', type: 'address'},
+  ];
+  const chainId = await web3.eth.getChainId();
+  return fromRpcSig(ethSigUtil.signTypedMessage(voterBySig.getPrivateKey(), {
+    data: {
+      types: {
+        EIP712Domain,
+        Ballot: [
+          {name: 'proposalId', type: 'uint256'},
+          {name: 'support', type: 'uint8'},
+        ],
+      },
+      domain: {
+        name: await governance.name(),
+        version: await governance.version(),
+        chainId: chainId,
+        verifyingContract: governance.address
+      },
+      primaryType: 'Ballot',
+      message,
+    },
+  }));
+};
 
 contract("Governance", async (accounts) => {
   const [owner, validator1, validator2, owner1, owner2] = accounts;
@@ -32,8 +65,7 @@ contract("Governance", async (accounts) => {
   });
   it("its impossible to abuse voting processing using owner switching", async () => {
     const {parlia, governance} = await newMockContract(owner, {
-      genesisValidators: [validator1, validator2],
-      votingPeriod: '5',
+      genesisValidators: [validator1, validator2], votingPeriod: '5',
     });
     await parlia.delegate(validator1, {value: '1000000000000000000', from: owner}); // 50%
     await parlia.delegate(validator2, {value: '1000000000000000000', from: owner}); // 50%
@@ -51,5 +83,26 @@ contract("Governance", async (accounts) => {
     await waitForNextEpoch(parlia);
     // state must be defeated
     assert.equal(await governance.state(proposalId), '3')
+  });
+  it('vote with signature', async function () {
+    const {parlia, governance} = await newMockContract(owner, {
+      genesisValidators: [
+        validator1,
+      ],
+      votingPeriod: '5',
+    });
+    await parlia.delegate(validator1, {value: '1000000000000000000', from: owner});
+    await waitForNextEpoch(parlia);
+    const voterBySig = Wallet.fromPrivateKey(Buffer.from('0000000000000000000000000000000000000000000000000000000000000001', 'hex'));
+    // an example of malicious proposal
+    const res1 = await governance.propose([owner], ['0'], ['0x'], 'empty proposal', {from: validator1});
+    const {proposalId} = res1.logs[0].args;
+    // it's possible to vote using signature
+    const sig = await createTypedSignature(governance, voterBySig, {
+      proposalId, support: '1',
+    });
+    const res2 = await governance.castVoteBySig(proposalId, '1', sig.v, sig.r, sig.s);
+    assert.equal(res2.logs[0].event, 'VoteCast');
+    assert.equal(res2.logs[0].args.voter.toLowerCase(), voterBySig.getAddressString().toLowerCase());
   });
 });
