@@ -383,6 +383,48 @@ var localNetConfig = genesisConfig{
 }
 
 var devNetConfig = genesisConfig{
+	ChainId: 17243,
+	// who is able to deploy smart contract from genesis block (it won't generate event log)
+	Deployers: []common.Address{},
+	// list of default validators (it won't generate event log)
+	Validators: []common.Address{
+		common.HexToAddress("0x08fae3885e299c24ff9841478eb946f41023ac69"),
+		common.HexToAddress("0x751aaca849b09a3e347bbfe125cf18423cc24b40"),
+		common.HexToAddress("0xa6ff33e3250cc765052ac9d7f7dfebda183c4b9b"),
+		common.HexToAddress("0x49c0f7c8c11a4c80dc6449efe1010bb166818da8"),
+		common.HexToAddress("0x8e1ea6eaa09c3b40f4a51fcd056a031870a0549a"),
+	},
+	SystemTreasury: map[common.Address]uint16{
+		common.HexToAddress("0x0000000000000000000000000000000000000000"): 10000,
+	},
+	ConsensusParams: consensusParams{
+		ActiveValidatorsLength:   25,   // suggested values are (3k+1, where k is honest validators, even better): 7, 13, 19, 25, 31...
+		EpochBlockInterval:       1200, // better to use 1 day epoch (86400/3=28800, where 3s is block time)
+		MisdemeanorThreshold:     50,   // after missing this amount of blocks per day validator losses all daily rewards (penalty)
+		FelonyThreshold:          150,  // after missing this amount of blocks per day validator goes in jail for N epochs
+		ValidatorJailEpochLength: 7,    // how many epochs validator should stay in jail (7 epochs = ~7 days)
+		UndelegatePeriod:         6,    // allow claiming funds only after 6 epochs (~7 days)
+
+		MinValidatorStakeAmount: (*math.HexOrDecimal256)(hexutil.MustDecodeBig("0xde0b6b3a7640000")), // how many tokens validator must stake to create a validator (in ether)
+		MinStakingAmount:        (*math.HexOrDecimal256)(hexutil.MustDecodeBig("0xde0b6b3a7640000")), // minimum staking amount for delegators (in ether)
+	},
+	InitialStakes: map[common.Address]string{
+		common.HexToAddress("0x08fae3885e299c24ff9841478eb946f41023ac69"): "0x3635c9adc5dea00000", // 1000 eth
+		common.HexToAddress("0x751aaca849b09a3e347bbfe125cf18423cc24b40"): "0x3635c9adc5dea00000", // 1000 eth
+		common.HexToAddress("0xa6ff33e3250cc765052ac9d7f7dfebda183c4b9b"): "0x3635c9adc5dea00000", // 1000 eth
+		common.HexToAddress("0x49c0f7c8c11a4c80dc6449efe1010bb166818da8"): "0x3635c9adc5dea00000", // 1000 eth
+		common.HexToAddress("0x8e1ea6eaa09c3b40f4a51fcd056a031870a0549a"): "0x3635c9adc5dea00000", // 1000 eth
+	},
+	// owner of the governance
+	VotingPeriod: 60, // 3 minutes
+	// faucet
+	Faucet: map[common.Address]string{
+		common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"): "0x21e19e0c9bab2400000",    // governance
+		common.HexToAddress("0xb891fe7b38f857f53a7b5529204c58d5c487280b"): "0x52b7d2dcc80cd2e4000000", // faucet (10kk)
+	},
+}
+
+var testNetConfig = genesisConfig{
 	ChainId: 88880,
 	// who is able to deploy smart contract from genesis block (it won't generate event log)
 	Deployers: []common.Address{
@@ -447,12 +489,16 @@ func main() {
 		}
 		return
 	}
-	fmt.Printf("building local net\n")
+	fmt.Printf("building localnet\n")
 	if err := createGenesisConfig(localNetConfig, "localnet.json"); err != nil {
 		panic(err)
 	}
-	fmt.Printf("\nbuilding dev net\n")
+	fmt.Printf("\nbuilding devnet\n")
 	if err := createGenesisConfig(devNetConfig, "devnet.json"); err != nil {
+		panic(err)
+	}
+	fmt.Printf("\nbuilding testnet\n")
+	if err := createGenesisConfig(testNetConfig, "testnet.json"); err != nil {
 		panic(err)
 	}
 	fmt.Printf("\n")
