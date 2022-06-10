@@ -74,12 +74,11 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         emit ProposerAdded(proposer);
     }
 
-    modifier onlyProposer(address account) {
+    modifier onlyProposer() {
         if (!_registryActivated) {
-            address validatorAddress = _stakingContract.getValidatorByOwner(account);
-            require(_stakingContract.isValidatorActive(validatorAddress), "Governance: only validator owner");
+            require(_stakingContract.isValidatorActive(_stakingContract.getValidatorByOwner(msg.sender)), "Governance: only validator owner");
         } else {
-            require(_proposerRegistry[account], "Governance: only proposer");
+            require(_proposerRegistry[msg.sender], "Governance: only proposer");
         }
         _;
     }
@@ -98,7 +97,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 descriptionHash
-    ) public payable virtual override onlyProposer(msg.sender) returns (uint256) {
+    ) public payable virtual override onlyProposer returns (uint256) {
         return Governor.execute(targets, values, calldatas, descriptionHash);
     }
 
