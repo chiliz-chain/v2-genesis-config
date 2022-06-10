@@ -9,7 +9,12 @@ import "./Injector.sol";
 
 contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSettings, IGovernance {
 
+    event ProposerAdded(address proposer);
+    event ProposerRemoved(address proposer);
+
     uint256 internal _instantVotingPeriod;
+    mapping(address => bool) internal _proposerRegistry;
+    bool internal _registryActivated;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) Governor("Chiliz Governance") GovernorSettings(0, 1, 0) {
     }
@@ -32,7 +37,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         bytes[] memory calldatas,
         string memory description,
         uint256 customVotingPeriod
-    ) public virtual onlyValidatorOwner(msg.sender) returns (uint256) {
+    ) public virtual onlyProposer returns (uint256) {
         _instantVotingPeriod = customVotingPeriod;
         uint256 proposalId = propose(targets, values, calldatas, description);
         _instantVotingPeriod = 0;
@@ -44,14 +49,48 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         uint256[] memory values,
         bytes[] memory calldatas,
         string memory description
-    ) public virtual override onlyValidatorOwner(msg.sender) returns (uint256) {
+    ) public virtual override onlyProposer returns (uint256) {
         return Governor.propose(targets, values, calldatas, description);
     }
 
-    modifier onlyValidatorOwner(address account) {
-        address validatorAddress = _stakingContract.getValidatorByOwner(account);
-        require(_stakingContract.isValidatorActive(validatorAddress), "Governance: only validator owner");
+    modifier onlyFromProposerOrGovernance() {
+        require(_proposerRegistry[msg.sender] || msg.sender == address(_governanceContract), "Governance: only proposer or governance");
         _;
+    }
+
+    function addProposer(address proposer) external onlyFromProposerOrGovernance {
+        _addProposer(proposer);
+    }
+
+    function _addProposer(address proposer) internal {
+        require(!_proposerRegistry[proposer], "Governance: proposer already exist");
+        _proposerRegistry[proposer] = true;
+        emit ProposerAdded(proposer);
+    }
+
+    function removeProposer(address proposer) external onlyFromProposerOrGovernance {
+        require(_proposerRegistry[proposer], "Governance: proposer not found");
+        _proposerRegistry[proposer] = false;
+        emit ProposerAdded(proposer);
+    }
+
+    modifier onlyProposer(address account) {
+        if (!_registryActivated) {
+            address validatorAddress = _stakingContract.getValidatorByOwner(account);
+            require(_stakingContract.isValidatorActive(validatorAddress), "Governance: only validator owner");
+        } else {
+            require(_proposerRegistry[account], "Governance: only proposer");
+        }
+        _;
+    }
+
+    function activateProposerRegistry() external onlyFromGovernance {
+        require(!_registryActivated, "Governance: registry already activated");
+        address[] memory currentValidatorSet = _stakingContract.getValidators();
+        for (uint256 i = 0; i < currentValidatorSet.length; i++) {
+            _addProposer(currentValidatorSet[i]);
+        }
+        _registryActivated = true;
     }
 
     function execute(
@@ -59,7 +98,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 descriptionHash
-    ) public payable virtual override onlyValidatorOwner(msg.sender) returns (uint256) {
+    ) public payable virtual override onlyProposer(msg.sender) returns (uint256) {
         return Governor.execute(targets, values, calldatas, descriptionHash);
     }
 
