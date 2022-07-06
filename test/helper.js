@@ -28,6 +28,7 @@ const DEFAULT_MOCK_PARAMS = {
   genesisValidators: [],
   genesisDeployers: [],
   runtimeUpgradeEvmHook: '0x0000000000000000000000000000000000000000',
+  votingPeriod: '2',
 };
 
 const DEFAULT_CONTRACT_TYPES = {
@@ -58,7 +59,7 @@ const newContractUsingTypes = async (owner, params, types = {}) => {
     RuntimeUpgrade,
     DeployerProxy,
   } = Object.assign({}, DEFAULT_CONTRACT_TYPES, types)
-  const {
+  let {
     genesisDeployers,
     systemTreasury,
     activeValidatorsLength,
@@ -71,6 +72,7 @@ const newContractUsingTypes = async (owner, params, types = {}) => {
     minValidatorStakeAmount,
     minStakingAmount,
     runtimeUpgradeEvmHook,
+    votingPeriod,
   } = Object.assign({}, DEFAULT_MOCK_PARAMS, params)
   // factory contracts
   const staking = await Staking.new(createConstructorArgs(
@@ -78,8 +80,11 @@ const newContractUsingTypes = async (owner, params, types = {}) => {
     [genesisValidators, genesisValidators.map(() => '0'), '0'])
   );
   const slashingIndicator = await SlashingIndicator.new(createConstructorArgs([], []));
-  const systemReward = await SystemReward.new(createConstructorArgs(['address'], [systemTreasury]));
-  const governance = await Governance.new(createConstructorArgs(['uint256'], ['1']));
+  if (typeof systemTreasury === 'string') {
+    systemTreasury = {[systemTreasury]: '10000'}
+  }
+  const systemReward = await SystemReward.new(createConstructorArgs(['address[]', 'uint16[]'], [Object.keys(systemTreasury), Object.values(systemTreasury)]));
+  const governance = await Governance.new(createConstructorArgs(['uint256'], [votingPeriod]));
   const chainConfig = await ChainConfig.new(createConstructorArgs(
     ["uint32", "uint32", "uint32", "uint32", "uint32", "uint32", "uint256", "uint256"],
     [activeValidatorsLength, epochBlockInterval, misdemeanorThreshold, felonyThreshold, validatorJailEpochLength, undelegatePeriod, minValidatorStakeAmount, minStakingAmount])
