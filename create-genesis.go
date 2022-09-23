@@ -191,6 +191,12 @@ type consensusParams struct {
 	MinStakingAmount         *math.HexOrDecimal256 `json:"minStakingAmount"`
 }
 
+type ChilizForks struct {
+	RuntimeUpgradeBlock    *math.HexOrDecimal256 `json:"runtimeUpgradeBlock"`
+	DeployOriginBlock      *math.HexOrDecimal256 `json:"deployOriginBlock"`
+	DeploymentHookFixBlock *math.HexOrDecimal256 `json:"deploymentHookFixBlock"`
+}
+
 type genesisConfig struct {
 	ChainId         int64                     `json:"chainId"`
 	Deployers       []common.Address          `json:"deployers"`
@@ -201,6 +207,7 @@ type genesisConfig struct {
 	Faucet          map[common.Address]string `json:"faucet"`
 	CommissionRate  int64                     `json:"commissionRate"`
 	InitialStakes   map[common.Address]string `json:"initialStakes"`
+	Forks           ChilizForks               `json:"forks"`
 }
 
 func invokeConstructorOrPanic(genesis *core.Genesis, contract common.Address, rawArtifact []byte, typeNames []string, params []interface{}, silent bool, balance *big.Int) {
@@ -223,7 +230,7 @@ func invokeConstructorOrPanic(genesis *core.Genesis, contract common.Address, ra
 }
 
 func createGenesisConfig(config genesisConfig, targetFile string) error {
-	genesis := defaultGenesisConfig(config.ChainId)
+	genesis := defaultGenesisConfig(config)
 	// extra data
 	genesis.ExtraData = createExtraData(config.Validators)
 	genesis.Config.Parlia.Epoch = uint64(config.ConsensusParams.EpochBlockInterval)
@@ -308,9 +315,17 @@ func createGenesisConfig(config genesisConfig, targetFile string) error {
 	return ioutil.WriteFile(targetFile, newJson, fs.ModePerm)
 }
 
-func defaultGenesisConfig(chainId int64) *core.Genesis {
+func decimalToBigInt(value *math.HexOrDecimal256) *big.Int {
+	if value == nil {
+		return nil
+	}
+	return (*big.Int)(value)
+}
+
+func defaultGenesisConfig(config genesisConfig) *core.Genesis {
 	chainConfig := &params.ChainConfig{
-		ChainID:             big.NewInt(chainId),
+		ChainID: big.NewInt(config.ChainId),
+		// Default ETH forks
 		HomesteadBlock:      big.NewInt(0),
 		EIP150Block:         big.NewInt(0),
 		EIP155Block:         big.NewInt(0),
@@ -324,7 +339,11 @@ func defaultGenesisConfig(chainId int64) *core.Genesis {
 		NielsBlock:          big.NewInt(0),
 		MirrorSyncBlock:     big.NewInt(0),
 		BrunoBlock:          big.NewInt(0),
-		RuntimeUpgradeBlock: big.NewInt(0),
+		// Chiliz V2 forks
+		RuntimeUpgradeBlock:    decimalToBigInt(config.Forks.RuntimeUpgradeBlock),
+		DeployOriginBlock:      decimalToBigInt(config.Forks.DeployOriginBlock),
+		DeploymentHookFixBlock: decimalToBigInt(config.Forks.DeploymentHookFixBlock),
+		// Parlia config
 		Parlia: &params.ParliaConfig{
 			Period: 3,
 			// epoch length is managed by consensus params
@@ -464,6 +483,11 @@ var testNetConfig = genesisConfig{
 	Faucet: map[common.Address]string{
 		common.HexToAddress("0xb0c09bF51E04eDc7Bf198D61bB74CDa886878167"): "0x197D7361310E45C669F80000", // main
 		common.HexToAddress("0xc59181b702A7F3A8eCea27f30072B8dbCcC0c48a"): "0x33B2E3C9FD0803CE8000000",  // faucet
+	},
+	Forks: ChilizForks{
+		RuntimeUpgradeBlock:    (*math.HexOrDecimal256)(big.NewInt(0)),
+		DeployOriginBlock:      (*math.HexOrDecimal256)(big.NewInt(2849000)),
+		DeploymentHookFixBlock: nil,
 	},
 }
 
