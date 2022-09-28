@@ -54,7 +54,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
     }
 
     modifier onlyFromProposerOrGovernance() {
-        require(_proposerRegistry[msg.sender] || msg.sender == address(_governanceContract), "Governance: only proposer or governance");
+        require(isProposer(msg.sender) || msg.sender == address(_governanceContract), "Governance: only proposer or governance");
         _;
     }
 
@@ -63,13 +63,13 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
     }
 
     function _addProposer(address proposer) internal {
-        require(!_proposerRegistry[proposer], "Governance: proposer already exist");
+        require(!isProposer(proposer), "Governance: proposer already exist");
         _proposerRegistry[proposer] = true;
         emit ProposerAdded(proposer);
     }
 
     function removeProposer(address proposer) external onlyFromProposerOrGovernance {
-        require(_proposerRegistry[proposer], "Governance: proposer not found");
+        require(isProposer(proposer), "Governance: proposer not found");
         _proposerRegistry[proposer] = false;
         emit ProposerAdded(proposer);
     }
@@ -78,7 +78,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         if (!_registryActivated) {
             require(_stakingContract.isValidatorActive(_stakingContract.getValidatorByOwner(msg.sender)), "Governance: only validator owner");
         } else {
-            require(_proposerRegistry[msg.sender], "Governance: only proposer");
+            require(isProposer(msg.sender), "Governance: only proposer");
         }
         _;
     }
@@ -90,6 +90,14 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
             _addProposer(currentValidatorSet[i]);
         }
         _registryActivated = true;
+    }
+
+    function isRegistryActivated() public view returns (bool) {
+        return _registryActivated;
+    }
+
+    function isProposer(address account) public view returns (bool) {
+        return _proposerRegistry[account];
     }
 
     function execute(
