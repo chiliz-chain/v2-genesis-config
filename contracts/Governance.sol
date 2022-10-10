@@ -53,12 +53,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         return Governor.propose(targets, values, calldatas, description);
     }
 
-    modifier onlyFromProposerOrGovernance() {
-        require(isProposer(msg.sender) || msg.sender == address(_governanceContract), "Governance: only proposer or governance");
-        _;
-    }
-
-    function addProposer(address proposer) external onlyFromProposerOrGovernance {
+    function addProposer(address proposer) external onlyFromGovernance {
         _addProposer(proposer);
     }
 
@@ -68,7 +63,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         emit ProposerAdded(proposer);
     }
 
-    function removeProposer(address proposer) external onlyFromProposerOrGovernance {
+    function removeProposer(address proposer) external onlyFromGovernance {
         require(isProposer(proposer), "Governance: proposer not found");
         _proposerRegistry[proposer] = false;
         emit ProposerRemoved(proposer);
