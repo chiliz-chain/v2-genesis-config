@@ -71,7 +71,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
     function removeProposer(address proposer) external onlyFromProposerOrGovernance {
         require(isProposer(proposer), "Governance: proposer not found");
         _proposerRegistry[proposer] = false;
-        emit ProposerAdded(proposer);
+        emit ProposerRemoved(proposer);
     }
 
     modifier onlyProposer() {
