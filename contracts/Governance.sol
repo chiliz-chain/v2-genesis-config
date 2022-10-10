@@ -53,12 +53,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         return Governor.propose(targets, values, calldatas, description);
     }
 
-    modifier onlyFromProposerOrGovernance() {
-        require(isProposer(msg.sender) || msg.sender == address(_governanceContract), "Governance: only proposer or governance");
-        _;
-    }
-
-    function addProposer(address proposer) external onlyFromProposerOrGovernance {
+    function addProposer(address proposer) external onlyFromGovernance {
         _addProposer(proposer);
     }
 
@@ -68,10 +63,10 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         emit ProposerAdded(proposer);
     }
 
-    function removeProposer(address proposer) external onlyFromProposerOrGovernance {
+    function removeProposer(address proposer) external onlyFromGovernance {
         require(isProposer(proposer), "Governance: proposer not found");
         _proposerRegistry[proposer] = false;
-        emit ProposerAdded(proposer);
+        emit ProposerRemoved(proposer);
     }
 
     modifier onlyProposer() {
@@ -87,7 +82,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         require(!_registryActivated, "Governance: registry already activated");
         address[] memory currentValidatorSet = _stakingContract.getValidators();
         for (uint256 i = 0; i < currentValidatorSet.length; i++) {
-            _addProposer(currentValidatorSet[i]);
+            _addProposer(_stakingContract.getValidatorByOwner(currentValidatorSet[i]));
         }
         _registryActivated = true;
     }
