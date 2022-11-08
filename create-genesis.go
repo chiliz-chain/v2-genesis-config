@@ -529,7 +529,7 @@ var mainNetConfig = genesisConfig{
 		MinStakingAmount:         (*math.HexOrDecimal256)(hexutil.MustDecodeBig("0x56BC75E2D63100000")),    // minimum staking amount for delegators (in ether) - 100
 	},
 	InitialStakes: map[common.Address]string{
-        common.HexToAddress("0xFddAc11E0072e3377775345D58de0dc88A964837"): "0x8738880188000000000000000000", // Treasury 8,738,880,188 eth
+        common.HexToAddress("0xFddAc11E0072e3377775345D58de0dc88A964837"): "0x1C3CA1E1AAC1A93AF8800000", // Treasury 8,738,880,288 eth
         common.HexToAddress("0xfe74A701E42670fc23b64f8C4FaC59a0A01e6aA3"): "0x56BC75E2D63100000", // Deployer 100 eth
         common.HexToAddress("0x2045A60c9BFFCCEEB5a1AAD0e22A75965d221882"): "0x84595161401484A000000", // Validator 10,000,000 eth
         common.HexToAddress("0x811ceF18Ac8b28e0c4A54aB8220a51897ba9C489"): "0x84595161401484A000000", // Validator 10,000,000 eth
