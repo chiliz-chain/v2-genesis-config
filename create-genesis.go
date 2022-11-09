@@ -529,8 +529,6 @@ var mainNetConfig = genesisConfig{
 		MinStakingAmount:         (*math.HexOrDecimal256)(hexutil.MustDecodeBig("0x56BC75E2D63100000")),    // minimum staking amount for delegators (in ether) - 100
 	},
 	InitialStakes: map[common.Address]string{
-        common.HexToAddress("0xFddAc11E0072e3377775345D58de0dc88A964837"): "0x1C3CA1E1AAC1A93AF8800000", // Treasury 8,738,880,288 eth
-        common.HexToAddress("0xfe74A701E42670fc23b64f8C4FaC59a0A01e6aA3"): "0x56BC75E2D63100000", // Deployer 100 eth
         common.HexToAddress("0x2045A60c9BFFCCEEB5a1AAD0e22A75965d221882"): "0x84595161401484A000000", // Validator 10,000,000 eth
         common.HexToAddress("0x811ceF18Ac8b28e0c4A54aB8220a51897ba9C489"): "0x84595161401484A000000", // Validator 10,000,000 eth
         common.HexToAddress("0x4d466f3A688Cb1096497dbcB9Fd68E500e24f0B1"): "0x84595161401484A000000", // Validator 10,000,000 eth
@@ -546,6 +544,13 @@ var mainNetConfig = genesisConfig{
         common.HexToAddress("0xe5cFf8f16dA0b3067BC7432ba2b4AE7199EAAE53"): "0x84595161401484A000000", // Validator 10,000,000 eth
         common.HexToAddress("0x52527E4b47ad69Cd69021fBB6dA2A4F210FEec62"): "0x84595161401484A000000", // Validator 10,000,000 eth
         common.HexToAddress("0x31Dd5A7429ae591D2d73935C001DD148faBDd2cf"): "0x84595161401484A000000", // Validator 10,000,000 eth
+	},
+	// owner of the governance
+	VotingPeriod: 1200, // (~1hour)
+    // faucet
+    Faucet: map[common.Address]string{
+        common.HexToAddress("0xFddAc11E0072e3377775345D58de0dc88A964837"): "0x1C3CA1E1AAC1A93AF8800000", // Treasury 8,738,880,288 eth
+        common.HexToAddress("0xfe74A701E42670fc23b64f8C4FaC59a0A01e6aA3"): "0x56BC75E2D63100000", // Deployer 100 eth
         common.HexToAddress("0x8ee1c1f4b14c0A1698BdA02f58021968010523D2"): "0x56BC75E2D63100000", // Validator owner 100 eth
         common.HexToAddress("0xf9768B0Ac91F4B27f7F4DC88574a050c0e13Ccc1"): "0x56BC75E2D63100000", // Validator owner 100 eth
         common.HexToAddress("0x97ADd7226B3f1020fB3308cc67e74cb77757C211"): "0x56BC75E2D63100000", // Validator owner 100 eth
@@ -568,9 +573,7 @@ var mainNetConfig = genesisConfig{
         common.HexToAddress("0xAE68F408160C40d508834734aC5bEd773a36e9D2"): "0x3635C9ADC5DEA00000", // Bridge relayer 1,000 eth
         common.HexToAddress("0x3665dfcdaf8310684c24592b017D986A993320e6"): "0x3635C9ADC5DEA00000", // Bridge relayer 1,000 eth
         common.HexToAddress("0x252B5CA6c838ae47508c1eA72Dd73b58c607Af0f"): "0x3635C9ADC5DEA00000", // Bridge relayer 1,000 eth
-	},
-	// owner of the governance
-	VotingPeriod: 1200, // (~1hour)
+    },
 	Forks: ChilizForks{
 		RuntimeUpgradeBlock:    (*math.HexOrDecimal256)(big.NewInt(0)),
 		DeployOriginBlock:      (*math.HexOrDecimal256)(big.NewInt(0)),
