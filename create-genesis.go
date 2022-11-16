@@ -491,6 +491,96 @@ var testNetConfig = genesisConfig{
 	},
 }
 
+var mainNetConfig = genesisConfig{
+	ChainId: 88888,
+	// who is able to deploy smart contract from genesis block (it won't generate event log)
+	Deployers: []common.Address{
+		common.HexToAddress("0xfe74A701E42670fc23b64f8C4FaC59a0A01e6aA3"),
+	},
+	// list of default validators (it won't generate event log)
+	Validators: []common.Address{
+        common.HexToAddress("0x2045A60c9BFFCCEEB5a1AAD0e22A75965d221882"),
+        common.HexToAddress("0x811ceF18Ac8b28e0c4A54aB8220a51897ba9C489"),
+        common.HexToAddress("0x4d466f3A688Cb1096497dbcB9Fd68E500e24f0B1"),
+        common.HexToAddress("0x5c12a44A0bbaaF133123895cf90e05d94D6137Dc"),
+        common.HexToAddress("0x64552Cb88DE4Cd7438bFc6b8d4757305C6FA96Ae"),
+        common.HexToAddress("0xE548F293E2BA625eFB34c11e43217dD4330D6da8"),
+        common.HexToAddress("0xA2ec78Eb13C40c03F3F9283f7057B6C7E652F644"),
+        common.HexToAddress("0x7486B4f8f036B4Df55f7a55ab9b61D6d605067c6"),
+        common.HexToAddress("0xf57c7a5BCB023aB18683A46fA25a00fB19d651bE"),
+        common.HexToAddress("0xE0efCc3Fb5B1c66257945Ebc533C101783Fe97b4"),
+        common.HexToAddress("0x39a7179B6c73622B63B8b58b973835e00E9d38b4"),
+        common.HexToAddress("0x2064F56684377A8C50F4CdfBD5C65873763143fb"),
+        common.HexToAddress("0xe5cFf8f16dA0b3067BC7432ba2b4AE7199EAAE53"),
+        common.HexToAddress("0x52527E4b47ad69Cd69021fBB6dA2A4F210FEec62"),
+        common.HexToAddress("0x31Dd5A7429ae591D2d73935C001DD148faBDd2cf"),
+	},
+	SystemTreasury: map[common.Address]uint16{
+		common.HexToAddress("0xFddAc11E0072e3377775345D58de0dc88A964837"): 10000,
+	},
+	ConsensusParams: consensusParams{
+		ActiveValidatorsLength:   11,
+		EpochBlockInterval:       28800,                                                                  	// 1 day
+		MisdemeanorThreshold:     14400,                                                                    // missed blocks per epoch
+		FelonyThreshold:          21600,                                                                    // missed blocks per epoch
+		ValidatorJailEpochLength: 7,                                                                      	// nb of epochs
+		UndelegatePeriod:         7,                                                                      	// nb of epochs
+		MinValidatorStakeAmount:  (*math.HexOrDecimal256)(hexutil.MustDecodeBig("0x84595161401484A000000")), // how many tokens validator must stake to create a validator (in ether) - 10,000,000
+		MinStakingAmount:         (*math.HexOrDecimal256)(hexutil.MustDecodeBig("0x56BC75E2D63100000")),    // minimum staking amount for delegators (in CHZ) - 100
+	},
+	VotingPeriod: 271600, // 7 days
+	InitialStakes: map[common.Address]string{
+        common.HexToAddress("0x2045A60c9BFFCCEEB5a1AAD0e22A75965d221882"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+        common.HexToAddress("0x811ceF18Ac8b28e0c4A54aB8220a51897ba9C489"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+        common.HexToAddress("0x4d466f3A688Cb1096497dbcB9Fd68E500e24f0B1"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+        common.HexToAddress("0x5c12a44A0bbaaF133123895cf90e05d94D6137Dc"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+        common.HexToAddress("0x64552Cb88DE4Cd7438bFc6b8d4757305C6FA96Ae"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+        common.HexToAddress("0xE548F293E2BA625eFB34c11e43217dD4330D6da8"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+        common.HexToAddress("0xA2ec78Eb13C40c03F3F9283f7057B6C7E652F644"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+        common.HexToAddress("0x7486B4f8f036B4Df55f7a55ab9b61D6d605067c6"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+        common.HexToAddress("0xf57c7a5BCB023aB18683A46fA25a00fB19d651bE"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+        common.HexToAddress("0xE0efCc3Fb5B1c66257945Ebc533C101783Fe97b4"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+        common.HexToAddress("0x39a7179B6c73622B63B8b58b973835e00E9d38b4"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+        common.HexToAddress("0x2064F56684377A8C50F4CdfBD5C65873763143fb"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+        common.HexToAddress("0xe5cFf8f16dA0b3067BC7432ba2b4AE7199EAAE53"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+        common.HexToAddress("0x52527E4b47ad69Cd69021fBB6dA2A4F210FEec62"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+        common.HexToAddress("0x31Dd5A7429ae591D2d73935C001DD148faBDd2cf"): "0x84595161401484A000000", // Validator 10,000,000 CHZ
+	},
+    // Supply Distribution
+    Faucet: map[common.Address]string{
+        common.HexToAddress("0xFddAc11E0072e3377775345D58de0dc88A964837"): "0x1C3CA1DC3EFA4B0D95700000", // Treasury remaining locked supply 8,738,880,188 CHZ
+        common.HexToAddress("0xFddAc11E0072e3377775345D58de0dc88A964837"): "0x56BC75E2D63100000", // Treasury 100 CHZ
+        common.HexToAddress("0xfe74A701E42670fc23b64f8C4FaC59a0A01e6aA3"): "0x56BC75E2D63100000", // Deployer 100 CHZ
+        common.HexToAddress("0x8ee1c1f4b14c0A1698BdA02f58021968010523D2"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0xf9768B0Ac91F4B27f7F4DC88574a050c0e13Ccc1"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0x97ADd7226B3f1020fB3308cc67e74cb77757C211"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0x72676b2A2371Af4Fe23515e0E8bE9d44Bf41A6f4"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0xb67D0e9394932d3cFa6102A55F636481FBcc7976"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0x92D00DA3aE5f01761f5e1f425AFe3322931AAd31"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0xF25E764a2222532008D89FC018E70c18DD2401C2"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0x4e4620FE9dF2751F55FA01D24413343290c22698"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0xf299AfC34ec0B9dCAF868914288d735149d6306f"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0x9a905C99D7753F01918E389C785b5862CF7A3945"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0x19d0bc6d0Ca394E3547fF06A0F2805dB623dEcA8"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0x7F420438941EB35bCe2E7C6824B8f9c04Ad4f188"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0xdC3A7153A2afB491B94784d86d6A915Ce5dde102"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0x8a999c490793f9d340Be71Ea4Ae81E9C627bD0cd"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0x6d25F93FAb44a7651dd52B3560ac74d98e1f912C"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
+        common.HexToAddress("0x4b045692540E6B7AfDE44cdad60136d170efc623"): "0x3635C9ADC5DEA00000", // Bridge relayer 1,000 CHZ
+        common.HexToAddress("0xb0AdF650ABDc7d2d5ac7366888ab492e9Df8589A"): "0x3635C9ADC5DEA00000", // Bridge relayer 1,000 CHZ
+        common.HexToAddress("0x52f30AefB50B5d271d93A10730088733Bdbe31E0"): "0x3635C9ADC5DEA00000", // Bridge relayer 1,000 CHZ
+        common.HexToAddress("0x1Cb83A71d81DaCe297975e377777c94a32d9D5dD"): "0x3635C9ADC5DEA00000", // Bridge relayer 1,000 CHZ
+        common.HexToAddress("0xAE68F408160C40d508834734aC5bEd773a36e9D2"): "0x3635C9ADC5DEA00000", // Bridge relayer 1,000 CHZ
+        common.HexToAddress("0x3665dfcdaf8310684c24592b017D986A993320e6"): "0x3635C9ADC5DEA00000", // Bridge relayer 1,000 CHZ
+        common.HexToAddress("0x252B5CA6c838ae47508c1eA72Dd73b58c607Af0f"): "0x3635C9ADC5DEA00000", // Bridge relayer 1,000 CHZ
+    },
+	Forks: ChilizForks{
+		RuntimeUpgradeBlock:    (*math.HexOrDecimal256)(big.NewInt(0)),
+		DeployOriginBlock:      (*math.HexOrDecimal256)(big.NewInt(0)),
+		DeploymentHookFixBlock: (*math.HexOrDecimal256)(big.NewInt(0)),
+	},
+}
+
 func main() {
 	args := os.Args[1:]
 	if len(args) > 0 {
@@ -523,6 +613,10 @@ func main() {
 	}
 	fmt.Printf("\nbuilding testnet\n")
 	if err := createGenesisConfig(testNetConfig, "testnet.json"); err != nil {
+		panic(err)
+	}
+	fmt.Printf("\nbuilding mainnet\n")
+	if err := createGenesisConfig(mainNetConfig, "mainnet.json"); err != nil {
 		panic(err)
 	}
 	fmt.Printf("\n")
