@@ -513,4 +513,14 @@ contract("Staking", async (accounts) => {
     delegation = await parlia.getValidatorDelegation(validator1, staker1);
     assert.equal(delegation.delegatedAmount.toString(), '2000000000000000000')
   });
+  it("validator can unstake funds after registration", async () => {
+    const {parlia} = await newMockContract(owner, {
+      genesisValidators: [],
+      epochBlockInterval: '10',
+    });
+    // register validator w/o activation
+    await parlia.registerValidator(validator1, '0', {from: validator1, value: '1000000000000000000'});
+    // undelegate all funds
+    await parlia.undelegate(validator1, '1000000000000000000', {from: validator1});
+  });
 });
