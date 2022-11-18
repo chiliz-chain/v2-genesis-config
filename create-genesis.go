@@ -548,7 +548,7 @@ var mainNetConfig = genesisConfig{
 	},
     // Supply Distribution
     Faucet: map[common.Address]string{
-        common.HexToAddress("0xFddAc11E0072e3377775345D58de0dc88A964837"): "0x1C3CA1DC3EFA4B0D95700000", // Treasury remaining locked supply 8,738,880,188 CHZ
+		common.HexToAddress("0xFddAc11E0072e3377775345D58de0dc88A964837"): "0x1C3CA1E1AAC1A93AF8800000", // Treasury 8,738,880,288 eth
         common.HexToAddress("0xFddAc11E0072e3377775345D58de0dc88A964837"): "0x56BC75E2D63100000", // Treasury 100 CHZ
         common.HexToAddress("0xfe74A701E42670fc23b64f8C4FaC59a0A01e6aA3"): "0x56BC75E2D63100000", // Deployer 100 CHZ
         common.HexToAddress("0x8ee1c1f4b14c0A1698BdA02f58021968010523D2"): "0x56BC75E2D63100000", // Validator owner 100 CHZ
