@@ -699,6 +699,16 @@ contract Staking is IStaking, InjectorContextHolder {
         return _calcValidatorOwnerRewards(validator, _currentEpoch());
     }
 
+    function getValidatorFeeAtEpoch(address validatorAddress, uint64 beforeEpoch) external override view returns (uint256) {
+        // make sure validator exists at least
+        Validator memory validator = _validatorsMap[validatorAddress];
+        if (validator.status == ValidatorStatus.NotFound) {
+            return 0;
+        }
+        // calc validator rewards
+        return _calcValidatorOwnerRewards(validator, beforeEpoch);
+    }
+
     function getPendingValidatorFee(address validatorAddress) external override view returns (uint256) {
         // make sure validator exists at least
         Validator memory validator = _validatorsMap[validatorAddress];
@@ -731,6 +741,10 @@ contract Staking is IStaking, InjectorContextHolder {
 
     function getDelegatorFee(address validatorAddress, address delegatorAddress) external override view returns (uint256) {
         return _calcDelegatorRewardsAndPendingUndelegates(validatorAddress, delegatorAddress, _currentEpoch());
+    }
+
+    function getDelegatorFeeAtEpoch(address validatorAddress, address delegatorAddress, uint64 beforeEpoch) external override view returns (uint256) {
+        return _calcDelegatorRewardsAndPendingUndelegates(validatorAddress, delegatorAddress, beforeEpoch);
     }
 
     function getPendingDelegatorFee(address validatorAddress, address delegatorAddress) external override view returns (uint256) {
