@@ -82,9 +82,9 @@ contract Governance is InjectorContextHolder, GovernorCountingSimple, GovernorSe
         require(!_registryActivated, "Governance: registry already activated");
         address[] memory currentValidatorSet = _stakingContract.getValidators();
         for (uint256 i = 0; i < currentValidatorSet.length; i++) {
-            address validator = _stakingContract.getValidatorByOwner(currentValidatorSet[i]);
-            if (_stakingContract.isValidatorActive(validator)) {
-                _addProposer(currentValidatorSet[i]);
+            (address ownerAddress, uint8 status,,,,,,,) = _stakingContract.getValidatorStatus(currentValidatorSet[i]);
+            if (status == uint8(1)) {
+                _addProposer(ownerAddress);
             }
         }
         _registryActivated = true;
