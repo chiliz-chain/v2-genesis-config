@@ -15,7 +15,7 @@ contract RuntimeUpgrade is InjectorContextHolder, IRuntimeUpgrade {
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
 
-    function ctor(address evmHookAddress) external whenNotInitialized {
+    function ctor(address evmHookAddress) external onlyInitializing {
         require(evmHookAddress != address(0x00), "RuntimeUpgrade: zero address");
         _evmHookAddress = evmHookAddress;
     }

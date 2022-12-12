@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import "./Injector.sol";
 
+import "@openzeppelin/contracts/utils/Address.sol";
+
 contract SystemReward is ISystemReward, InjectorContextHolder {
 
     /**
@@ -40,7 +42,7 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
 
-    function ctor(address[] calldata accounts, uint16[] calldata shares) external whenNotInitialized {
+    function ctor(address[] calldata accounts, uint16[] calldata shares) external onlyInitializing {
         _updateDistributionShare(accounts, shares);
     }
 

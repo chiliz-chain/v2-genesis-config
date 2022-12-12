@@ -13,31 +13,10 @@ import "./interfaces/IStakingPool.sol";
 import "./interfaces/IInjector.sol";
 import "./interfaces/IDeployerProxy.sol";
 
-import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/utils/StorageSlot.sol";
 
-abstract contract AlreadyInit {
-
-    // flag indicating is smart contract initialized already
-    bool internal _init;
-
-    modifier initializer() {
-        require(!_init, "Injector: already initialized");
-        _;
-        _init = true;
-    }
-
-    modifier whenNotInitialized() {
-        require(!_init, "Injector: already initialized");
-        _;
-    }
-
-    modifier whenInitialized() {
-        require(_init, "Injector: not initialized yet");
-        _;
-    }
-}
-
-abstract contract InjectorContextHolder is AlreadyInit, IInjector {
+abstract contract InjectorContextHolder is Initializable, IInjector {
 
     // system smart contract constructor
     bytes internal _ctor;
@@ -119,7 +98,9 @@ abstract contract InjectorContextHolder is AlreadyInit, IInjector {
     }
 
     function isInitialized() external view returns (bool) {
-        return _init;
+        // openzeppelin's class "Initializable" doesnt expose any methods for fetching initialisation status
+        StorageSlot.Uint256Slot storage initializedSlot = StorageSlot.getUint256Slot(bytes32(0x0000000000000000000000000000000000000000000000000000000000000000));
+        return initializedSlot.value > 0;
     }
 
     modifier onlyFromCoinbase() {

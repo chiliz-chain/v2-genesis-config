@@ -38,7 +38,7 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
 
-    function ctor(address[] memory deployers) external whenNotInitialized {
+    function ctor(address[] memory deployers) external onlyInitializing {
         for (uint256 i = 0; i < deployers.length; i++) {
             _addDeployer(deployers[i]);
         }

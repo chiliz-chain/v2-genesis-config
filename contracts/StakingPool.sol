@@ -8,6 +8,8 @@ import "./interfaces/IInjector.sol";
 import "./Injector.sol";
 import "./Staking.sol";
 
+import "@openzeppelin/contracts/utils/Address.sol";
+
 contract StakingPool is InjectorContextHolder, IStakingPool {
 
     event Stake(address indexed validator, address indexed staker, uint256 amount);
@@ -38,7 +40,7 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
 
-    function ctor() external whenNotInitialized {
+    function ctor() external onlyInitializing {
     }
 
     function getStakedAmount(address validator, address staker) external view returns (uint256) {
