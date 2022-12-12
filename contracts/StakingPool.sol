@@ -175,8 +175,7 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
         // remove pending claim
         delete _pendingUnstakes[validator][msg.sender];
         // its safe to use call here (state is clear)
-        require(address(this).balance >= amount, "StakingPool: not enough balance");
-        payable(address(msg.sender)).transfer(amount);
+        Address.sendValue(payable(msg.sender), amount);
         // emit event
         emit Claim(validator, msg.sender, amount);
     }

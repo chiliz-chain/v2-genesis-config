@@ -13,6 +13,8 @@ import "./interfaces/IStakingPool.sol";
 import "./interfaces/IInjector.sol";
 import "./interfaces/IDeployerProxy.sol";
 
+import "@openzeppelin/contracts/utils/Address.sol";
+
 abstract contract AlreadyInit {
 
     // flag indicating is smart contract initialized already
