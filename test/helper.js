@@ -27,7 +27,7 @@ const DEFAULT_MOCK_PARAMS = {
   minStakingAmount: '1000000000000000000',
   genesisValidators: [],
   genesisDeployers: [],
-  runtimeUpgradeEvmHook: '0x0000000000000000000000000000000000000000',
+  runtimeUpgradeEvmHook: '0x0000000000000000000000000000000000000001',
   votingPeriod: '2',
 };
 
@@ -164,14 +164,14 @@ const expectError = async (promise, text) => {
   assert.fail();
 }
 
-const extractTxCost = (executionResult) => {
+const extractTxCost = async (executionResult) => {
   let {receipt: {gasUsed, effectiveGasPrice}} = executionResult;
   if (typeof effectiveGasPrice === 'string') {
-    effectiveGasPrice = effectiveGasPrice.substring(2)
+    effectiveGasPrice = new BigNumber(effectiveGasPrice.substring(2), 16)
   } else {
-    effectiveGasPrice = '1' // for coverage
+    effectiveGasPrice = new BigNumber(await web3.eth.getGasPrice(), 10)
   }
-  executionResult.txCost = new BigNumber(gasUsed).multipliedBy(new BigNumber(effectiveGasPrice, 16));
+  executionResult.txCost = new BigNumber(gasUsed).multipliedBy(effectiveGasPrice);
   return executionResult;
 }
 

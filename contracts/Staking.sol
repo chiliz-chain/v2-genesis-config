@@ -48,6 +48,11 @@ contract Staking is IStaking, InjectorContextHolder {
      * beacon proxies that have a lot of expensive SLOAD instructions.
      */
     uint64 internal constant TRANSFER_GAS_LIMIT = 30000;
+    /**
+     * Some items are stored in the queues and we must iterate though them to
+     * execute one by one. Sometimes gas might not be enough for the tx execution.
+     */
+    uint32 internal constant CLAIM_BEFORE_GAS = 100_000;
 
     // validator events
     event ValidatorAdded(address indexed validator, address owner, uint8 status, uint16 commissionRate);
@@ -347,17 +352,48 @@ contract Staking is IStaking, InjectorContextHolder {
         emit Undelegated(fromValidator, toDelegator, amount, beforeEpoch);
     }
 
-    enum ClaimMode {
-        Transfer,
-        Redelegate
+    function _transferDelegatorRewards(address validator, address delegator, uint64 beforeEpochExclude, bool withRewards, bool withUndelegates) internal {
+        ValidatorDelegation storage delegation = _validatorDelegations[validator][delegator];
+        // claim rewards and undelegates
+        uint256 availableFunds = 0;
+        if (withRewards) {
+            availableFunds += _processDelegateQueue(validator, delegation, beforeEpochExclude);
+        }
+        if (withUndelegates) {
+            availableFunds += _processUndelegateQueue(delegation, beforeEpochExclude);
+        }
+        // for transfer claim mode just all rewards to the user
+        _safeTransferWithGasLimit(payable(delegator), availableFunds);
+        // emit event
+        emit Claimed(validator, delegator, availableFunds, beforeEpochExclude);
     }
 
-    function _claimDelegatorRewardsAndPendingUndelegates(address validator, address delegator, uint64 beforeEpochExclude, ClaimMode claimMode) internal {
+    function _redelegateDelegatorRewards(address validator, address delegator, uint64 beforeEpochExclude, bool withRewards, bool withUndelegates) internal {
         ValidatorDelegation storage delegation = _validatorDelegations[validator][delegator];
+        // claim rewards and undelegates
         uint256 availableFunds = 0;
-        // process delegate queue to calculate staking rewards
+        if (withRewards) {
+            availableFunds += _processDelegateQueue(validator, delegation, beforeEpochExclude);
+        }
+        if (withUndelegates) {
+            availableFunds += _processUndelegateQueue(delegation, beforeEpochExclude);
+        }
+        (uint256 amountToStake, uint256 rewardsDust) = _calcAvailableForRedelegateAmount(availableFunds);
+        // if we have something to re-stake then delegate it to the validator
+        if (amountToStake > 0) {
+            _delegateTo(delegator, validator, amountToStake);
+        }
+        // if we have dust from staking then send it to user (we can't keep them in the contract)
+        if (rewardsDust > 0) {
+            _safeTransferWithGasLimit(payable(delegator), rewardsDust);
+        }
+        // emit event
+        emit Redelegated(validator, delegator, amountToStake, rewardsDust, beforeEpochExclude);
+    }
+
+    function _processDelegateQueue(address validator, ValidatorDelegation storage delegation, uint64 beforeEpochExclude) internal returns (uint256 availableFunds) {
         uint64 delegateGap = delegation.delegateGap;
-        for (uint256 queueLength = delegation.delegateQueue.length; delegateGap < queueLength;) {
+        for (uint256 queueLength = delegation.delegateQueue.length; delegateGap < queueLength && gasleft() > CLAIM_BEFORE_GAS;) {
             DelegationOpDelegate memory delegateOp = delegation.delegateQueue[delegateGap];
             if (delegateOp.epoch >= beforeEpochExclude) {
                 break;
@@ -366,7 +402,7 @@ contract Staking is IStaking, InjectorContextHolder {
             if (delegateGap < queueLength - 1) {
                 voteChangedAtEpoch = delegation.delegateQueue[delegateGap + 1].epoch;
             }
-            for (; delegateOp.epoch < beforeEpochExclude && (voteChangedAtEpoch == 0 || delegateOp.epoch < voteChangedAtEpoch); delegateOp.epoch++) {
+            for (; delegateOp.epoch < beforeEpochExclude && (voteChangedAtEpoch == 0 || delegateOp.epoch < voteChangedAtEpoch) && gasleft() > CLAIM_BEFORE_GAS; delegateOp.epoch++) {
                 ValidatorSnapshot memory validatorSnapshot = _validatorSnapshots[validator][delegateOp.epoch];
                 if (validatorSnapshot.totalDelegated == 0) {
                     continue;
@@ -383,9 +419,12 @@ contract Staking is IStaking, InjectorContextHolder {
             ++delegateGap;
         }
         delegation.delegateGap = delegateGap;
-        // process all items from undelegate queue
+        return availableFunds;
+    }
+
+    function _processUndelegateQueue(ValidatorDelegation storage delegation, uint64 beforeEpochExclude) internal returns (uint256 availableFunds) {
         uint64 undelegateGap = delegation.undelegateGap;
-        for (uint256 queueLength = delegation.undelegateQueue.length; undelegateGap < queueLength;) {
+        for (uint256 queueLength = delegation.undelegateQueue.length; undelegateGap < queueLength && gasleft() > CLAIM_BEFORE_GAS;) {
             DelegationOpUndelegate memory undelegateOp = delegation.undelegateQueue[undelegateGap];
             if (undelegateOp.epoch > beforeEpochExclude) {
                 break;
@@ -395,31 +434,10 @@ contract Staking is IStaking, InjectorContextHolder {
             ++undelegateGap;
         }
         delegation.undelegateGap = undelegateGap;
-        // send available for claim funds to delegator
-        if (claimMode == ClaimMode.Transfer) {
-            // for transfer claim mode just all rewards to the user
-            _safeTransferWithGasLimit(payable(delegator), availableFunds);
-            // emit event
-            emit Claimed(validator, delegator, availableFunds, beforeEpochExclude);
-        } else if (claimMode == ClaimMode.Redelegate) {
-            (uint256 amountToStake, uint256 rewardsDust) = _calcAvailableForRedelegateAmount(availableFunds);
-            // if we have something to re-stake then delegate it to the validator
-            if (amountToStake > 0) {
-                _delegateTo(delegator, validator, amountToStake);
-            }
-            // if we have dust from staking then send it to user
-            if (rewardsDust > 0) {
-                _safeTransferWithGasLimit(payable(delegator), rewardsDust);
-            }
-            // emit event
-            emit Redelegated(validator, delegator, amountToStake, rewardsDust, beforeEpochExclude);
-        } else {
-            // this case is not possible, no error for less bytecode
-            revert();
-        }
+        return availableFunds;
     }
 
-    function _calcDelegatorRewardsAndPendingUndelegates(address validator, address delegator, uint64 beforeEpoch) internal view returns (uint256) {
+    function _calcDelegatorRewardsAndPendingUndelegates(address validator, address delegator, uint64 beforeEpoch, bool withUndelegate) internal view returns (uint256) {
         ValidatorDelegation memory delegation = _validatorDelegations[validator][delegator];
         uint256 availableFunds = 0;
         // process delegate queue to calculate staking rewards
@@ -443,7 +461,7 @@ contract Staking is IStaking, InjectorContextHolder {
             ++delegation.delegateGap;
         }
         // process all items from undelegate queue
-        while (delegation.undelegateGap < delegation.undelegateQueue.length) {
+        while (withUndelegate && delegation.undelegateGap < delegation.undelegateQueue.length) {
             DelegationOpUndelegate memory undelegateOp = delegation.undelegateQueue[delegation.undelegateGap];
             if (undelegateOp.epoch > beforeEpoch) {
                 break;
@@ -740,20 +758,20 @@ contract Staking is IStaking, InjectorContextHolder {
     }
 
     function getDelegatorFee(address validatorAddress, address delegatorAddress) external override view returns (uint256) {
-        return _calcDelegatorRewardsAndPendingUndelegates(validatorAddress, delegatorAddress, _currentEpoch());
+        return _calcDelegatorRewardsAndPendingUndelegates(validatorAddress, delegatorAddress, _currentEpoch(), true);
     }
 
     function getDelegatorFeeAtEpoch(address validatorAddress, address delegatorAddress, uint64 beforeEpoch) external override view returns (uint256) {
-        return _calcDelegatorRewardsAndPendingUndelegates(validatorAddress, delegatorAddress, beforeEpoch);
+        return _calcDelegatorRewardsAndPendingUndelegates(validatorAddress, delegatorAddress, beforeEpoch, true);
     }
 
     function getPendingDelegatorFee(address validatorAddress, address delegatorAddress) external override view returns (uint256) {
-        return _calcDelegatorRewardsAndPendingUndelegates(validatorAddress, delegatorAddress, _nextEpoch());
+        return _calcDelegatorRewardsAndPendingUndelegates(validatorAddress, delegatorAddress, _nextEpoch(), true);
     }
 
     function claimDelegatorFee(address validatorAddress) external override {
         // claim all confirmed delegator fees including undelegates
-        _claimDelegatorRewardsAndPendingUndelegates(validatorAddress, msg.sender, _currentEpoch(), ClaimMode.Transfer);
+        _transferDelegatorRewards(validatorAddress, msg.sender, _currentEpoch(), true, true);
     }
 
     function _calcAvailableForRedelegateAmount(uint256 claimableRewards) internal view returns (uint256 amountToStake, uint256 rewardsDust) {
@@ -766,21 +784,26 @@ contract Staking is IStaking, InjectorContextHolder {
         return (amountToStake, claimableRewards - amountToStake);
     }
 
-    function calcAvailableForRedelegateAmount(address validator, address delegator) external view override returns (uint256 amountToStake, uint256 rewardsDust) {
-        uint256 claimableRewards = _calcDelegatorRewardsAndPendingUndelegates(validator, delegator, _currentEpoch());
+    function calcAvailableForRedelegateAmount(address validator, address delegator) external override view returns (uint256 amountToStake, uint256 rewardsDust) {
+        uint256 claimableRewards = _calcDelegatorRewardsAndPendingUndelegates(validator, delegator, _currentEpoch(), false);
         return _calcAvailableForRedelegateAmount(claimableRewards);
+    }
+
+    function claimPendingUndelegates(address validator) external override {
+        // claim only pending undelegates
+        _transferDelegatorRewards(validator, msg.sender, _currentEpoch(), false, true);
     }
 
     function redelegateDelegatorFee(address validator) external override {
         // claim rewards in the redelegate mode (check function code for more info)
-        _claimDelegatorRewardsAndPendingUndelegates(validator, msg.sender, _currentEpoch(), ClaimMode.Redelegate);
+        _redelegateDelegatorRewards(validator, msg.sender, _currentEpoch(), true, false);
     }
 
     function claimDelegatorFeeAtEpoch(address validatorAddress, uint64 beforeEpoch) external override {
         // make sure delegator can't claim future epochs
         require(beforeEpoch <= _currentEpoch());
         // claim all confirmed delegator fees including undelegates
-        _claimDelegatorRewardsAndPendingUndelegates(validatorAddress, msg.sender, beforeEpoch, ClaimMode.Transfer);
+        _transferDelegatorRewards(validatorAddress, msg.sender, _currentEpoch(), true, true);
     }
 
     function _safeTransferWithGasLimit(address payable recipient, uint256 amount) internal {
