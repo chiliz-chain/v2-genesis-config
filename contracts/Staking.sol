@@ -803,7 +803,7 @@ contract Staking is IStaking, InjectorContextHolder {
         // make sure delegator can't claim future epochs
         require(beforeEpoch <= _currentEpoch());
         // claim all confirmed delegator fees including undelegates
-        _transferDelegatorRewards(validatorAddress, msg.sender, _currentEpoch(), true, true);
+        _transferDelegatorRewards(validatorAddress, msg.sender, beforeEpoch, true, true);
     }
 
     function _safeTransferWithGasLimit(address payable recipient, uint256 amount) internal {
