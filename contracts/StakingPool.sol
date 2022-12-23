@@ -33,9 +33,9 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
     // validator pools (validator => pool)
     mapping(address => ValidatorPool) internal _validatorPools;
     // pending undelegates (validator => staker => pending unstake)
-    mapping(address => mapping(address => PendingUnstake)) public _pendingUnstakes;
+    mapping(address => mapping(address => PendingUnstake)) internal _pendingUnstakes;
     // allocated shares (validator => staker => shares)
-    mapping(address => mapping(address => uint256)) public _stakerShares;
+    mapping(address => mapping(address => uint256)) internal _stakerShares;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
