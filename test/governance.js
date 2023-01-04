@@ -85,6 +85,7 @@ contract("Governance", async (accounts) => {
     assert.equal(await governance.state(proposalId), '3')
   });
   it('vote with signature', async function () {
+    // TODO: "this test fails on ganache due to chainid() problem"
     const {parlia, governance} = await newMockContract(owner, {
       genesisValidators: [
         validator1,

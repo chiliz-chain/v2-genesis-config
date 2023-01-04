@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import "./Injector.sol";
 
+import "@openzeppelin/contracts/utils/Address.sol";
+
 contract SystemReward is ISystemReward, InjectorContextHolder {
 
     /**
@@ -40,7 +42,7 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
 
-    function ctor(address[] calldata accounts, uint16[] calldata shares) external whenNotInitialized {
+    function ctor(address[] calldata accounts, uint16[] calldata shares) external onlyInitializing {
         _updateDistributionShare(accounts, shares);
     }
 
@@ -100,8 +102,7 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
         _systemFee = 0;
         // if we have system treasury then its legacy scheme
         if (_systemTreasury != address(0x00)) {
-            address payable payableTreasury = payable(_systemTreasury);
-            payableTreasury.transfer(amountToPay);
+            Address.sendValue(payable(_systemTreasury), amountToPay);
             emit FeeClaimed(_systemTreasury, amountToPay);
             return;
         }
@@ -110,7 +111,8 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
         for (uint256 i = 0; i < _distributionShares.length; i++) {
             DistributionShare memory ds = _distributionShares[i];
             uint256 accountFee = amountToPay * ds.share / SHARE_MAX_VALUE;
-            payable(ds.account).transfer(accountFee);
+            // reentrancy attack is not possible here because we set system fee to zero
+            Address.sendValue(payable(ds.account), accountFee);
             emit FeeClaimed(ds.account, accountFee);
             totalPaid += accountFee;
         }

@@ -39,7 +39,7 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         uint32 undelegatePeriod,
         uint256 minValidatorStakeAmount,
         uint256 minStakingAmount
-    ) external whenNotInitialized {
+    ) external onlyInitializing {
         _consensusParams.activeValidatorsLength = activeValidatorsLength;
         emit ActiveValidatorsLengthChanged(0, activeValidatorsLength);
         _consensusParams.epochBlockInterval = epochBlockInterval;

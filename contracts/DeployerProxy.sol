@@ -38,7 +38,7 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
 
-    function ctor(address[] memory deployers) external whenNotInitialized {
+    function ctor(address[] memory deployers) external onlyInitializing {
         for (uint256 i = 0; i < deployers.length; i++) {
             _addDeployer(deployers[i]);
         }
@@ -107,7 +107,7 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
 
     function _registerDeployedContract(address deployer, address impl) internal {
         // make sure this call is allowed
-        require(isDeployer(deployer), "Deployer: deployer is not allowed");
+        require(isDeployer(deployer) && !isBanned(deployer), "Deployer: deployer is not allowed");
         // remember who deployed contract
         SmartContract memory dc = _smartContracts[impl];
         require(dc.impl == address(0x00), "Deployer: contract is deployed already");
