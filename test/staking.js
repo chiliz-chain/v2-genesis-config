@@ -12,7 +12,7 @@ const claimDelegatorFeeAndCheck = async (parlia, validator, staker, shouldBeAmou
   let validatorStakingFee = await parlia.getDelegatorFee(validator, staker)
   assert.equal(validatorStakingFee.toString(10), shouldBeAmount)
   let delegatorBalanceBefore = new BigNumber(await web3.eth.getBalance(staker));
-  let {logs, txCost} = await extractTxCost(await parlia.claimDelegatorFee(validator, {from: staker}));
+  let {logs, txCost} = await extractTxCost(await parlia.claimDelegatorFee(validator, {from: staker, gas: 1_000_000}));
   assert.equal(logs[0].event, 'Claimed')
   assert.equal(logs[0].args.amount, shouldBeAmount)
   let delegatorBalanceAfter = new BigNumber(await web3.eth.getBalance(staker));
@@ -272,7 +272,7 @@ contract("Staking", async (accounts) => {
     assert.equal(stakerFee.toString(10), '1107766700000000000');
     // let's claim staker fee
     let delegatorBalanceBefore = new BigNumber(await web3.eth.getBalance(staker1));
-    let {logs, txCost} = await extractTxCost(await parlia.claimDelegatorFee(validator1, {from: staker1}));
+    let {logs, txCost} = await extractTxCost(await parlia.claimDelegatorFee(validator1, {from: staker1, gas: 1_000_000}));
     assert.equal(logs[0].event, 'Claimed')
     assert.equal(logs[0].args.amount, '1107766700000000000')
     let delegatorBalanceAfter = new BigNumber(await web3.eth.getBalance(staker1));
@@ -451,7 +451,7 @@ contract("Staking", async (accounts) => {
       for (let i = 0; i < blocks; i++) {
         await parlia.deposit(validator1, {from: validator1, value: '1000000000000000000'}); // 1.0
       }
-      const result = await parlia.claimDelegatorFee(validator1, {from: staker1})
+      const result = await parlia.claimDelegatorFee(validator1, {from: staker1, gas: 1_000_000})
       console.log(` + ${blocks} blocks, amount=${new BigNumber(result.logs[0].args.amount).dividedBy(1e18).toString(10)}, gas=${result.receipt.gasUsed}`);
     }
   })
