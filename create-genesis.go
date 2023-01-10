@@ -492,7 +492,7 @@ var testNetConfig = genesisConfig{
 	},
 }
 
-var spicyNetConfig = genesisConfig{
+var spicyConfig = genesisConfig{
 	ChainId: 88882,
 	// who is able to deploy smart contract from genesis block (it won't generate event log)
 	Deployers: []common.Address{
@@ -530,7 +530,6 @@ var spicyNetConfig = genesisConfig{
 		common.HexToAddress("0xbdBF08393b66130B4b243863150A265b2A5Df642"): "0x3635C9ADC5DEA00000",   // 1000 CHZ
 		common.HexToAddress("0x86f2BB174c450917A1b560c66525E64A1c9B6a04"): "0x3635C9ADC5DEA00000",   // 1000 CHZ
 	},
-	// owner of the governance
 	VotingPeriod: 1200, // (~1hour)
 	// faucet
 	Faucet: map[common.Address]string{
@@ -668,7 +667,7 @@ func main() {
 		panic(err)
 	}
 	fmt.Printf("\nbuilding spicy testnet\n")
-	if err := createGenesisConfig(spicyNetConfig, "spicy.json"); err != nil {
+	if err := createGenesisConfig(spicyConfig, "spicy.json"); err != nil {
 		panic(err)
 	}
 	fmt.Printf("\nbuilding mainnet\n")
