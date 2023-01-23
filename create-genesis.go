@@ -492,6 +492,57 @@ var testNetConfig = genesisConfig{
 	},
 }
 
+var spicyConfig = genesisConfig{
+	ChainId: 88882,
+	// who is able to deploy smart contract from genesis block (it won't generate event log)
+	Deployers: []common.Address{
+		common.HexToAddress("0x02880217b082cC24D371eB5Bad0827D208bcBC6D"),
+	},
+	// list of default validators (it won't generate event log)
+	Validators: []common.Address{
+		common.HexToAddress("0xb1b5a8b8E2a263C0F497BC32a7cb6D27AEA921fc"),
+		common.HexToAddress("0x4dD74707f22b74EC872CA6AEB2a065E3d006B9d9"),
+		common.HexToAddress("0xBD6D190548bbF5C6920a826dF063A970Bd18f307"),
+		common.HexToAddress("0xeC2e502f77c4811f2ef477397235976b1371FCd3"),
+		common.HexToAddress("0x1cB3FC9e10fB5b845e53e5EaAE0bD561e662b0A5"),
+		common.HexToAddress("0xbdBF08393b66130B4b243863150A265b2A5Df642"),
+		common.HexToAddress("0x86f2BB174c450917A1b560c66525E64A1c9B6a04"),
+	},
+	SystemTreasury: map[common.Address]uint16{
+		common.HexToAddress("0x060eA461Cf7E78A38400dE9255687beb9b2c7298"): 10000,
+	},
+	ConsensusParams: consensusParams{
+		ActiveValidatorsLength:   5,
+		EpochBlockInterval:       7200,                                                                   // ~6 hours
+		MisdemeanorThreshold:     400,                                                                    // missed blocks per epoch
+		FelonyThreshold:          800,                                                                    // missed blocks per epoch
+		ValidatorJailEpochLength: 4,                                                                      // nb of epochs
+		UndelegatePeriod:         1,                                                                      // nb of epochs
+		MinValidatorStakeAmount:  (*math.HexOrDecimal256)(hexutil.MustDecodeBig("0x3635c9adc5dea00000")), // how many tokens validator must stake to create a validator (in ether)
+		MinStakingAmount:         (*math.HexOrDecimal256)(hexutil.MustDecodeBig("0xde0b6b3a7640000")),    // minimum staking amount for delegators (in ether)
+	},
+	InitialStakes: map[common.Address]string{
+		common.HexToAddress("0xb1b5a8b8E2a263C0F497BC32a7cb6D27AEA921fc"): "0x152D02C7E14AF6800000", // 100 000 CHZ
+		common.HexToAddress("0x4dD74707f22b74EC872CA6AEB2a065E3d006B9d9"): "0x3635C9ADC5DEA00000",   // 1000 CHZ
+		common.HexToAddress("0xBD6D190548bbF5C6920a826dF063A970Bd18f307"): "0x3635C9ADC5DEA00000",   // 1000 CHZ
+		common.HexToAddress("0xeC2e502f77c4811f2ef477397235976b1371FCd3"): "0x3635C9ADC5DEA00000",   // 1000 CHZ
+		common.HexToAddress("0x1cB3FC9e10fB5b845e53e5EaAE0bD561e662b0A5"): "0x3635C9ADC5DEA00000",   // 1000 CHZ
+		common.HexToAddress("0xbdBF08393b66130B4b243863150A265b2A5Df642"): "0x3635C9ADC5DEA00000",   // 1000 CHZ
+		common.HexToAddress("0x86f2BB174c450917A1b560c66525E64A1c9B6a04"): "0x3635C9ADC5DEA00000",   // 1000 CHZ
+	},
+	VotingPeriod: 1200, // (~1hour)
+	// faucet
+	Faucet: map[common.Address]string{
+		common.HexToAddress("0x77c6DC8fC511Bf2Fa594c47DdC336C69D745e73A"): "0x197D7361310E45C669F80000", // main
+		common.HexToAddress("0xa6779032c48127f362244AADD80E3A6E1b50BA93"): "0x33B2E3C9FD0803CE8000000",  // faucet
+	},
+	Forks: ChilizForks{
+		RuntimeUpgradeBlock:    (*math.HexOrDecimal256)(big.NewInt(0)),
+		DeployOriginBlock:      (*math.HexOrDecimal256)(big.NewInt(0)),
+		DeploymentHookFixBlock: (*math.HexOrDecimal256)(big.NewInt(0)),
+	},
+}
+
 var mainNetConfig = genesisConfig{
 	ChainId: 88888,
 	// who is able to deploy smart contract from genesis block (it won't generate event log)
@@ -611,8 +662,12 @@ func main() {
 	if err := createGenesisConfig(devNetConfig, "devnet.json"); err != nil {
 		panic(err)
 	}
-	fmt.Printf("\nbuilding testnet\n")
+	fmt.Printf("\nbuilding scoville testnet\n")
 	if err := createGenesisConfig(testNetConfig, "testnet.json"); err != nil {
+		panic(err)
+	}
+	fmt.Printf("\nbuilding spicy testnet\n")
+	if err := createGenesisConfig(spicyConfig, "spicy.json"); err != nil {
 		panic(err)
 	}
 	fmt.Printf("\nbuilding mainnet\n")

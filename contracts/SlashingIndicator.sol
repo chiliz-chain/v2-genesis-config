@@ -8,7 +8,7 @@ contract SlashingIndicator is ISlashingIndicator, InjectorContextHolder {
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
 
-    function ctor() external whenNotInitialized {
+    function ctor() external onlyInitializing {
     }
 
     function slash(address validator) external onlyFromCoinbase virtual override {
