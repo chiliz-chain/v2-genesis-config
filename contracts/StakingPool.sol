@@ -178,6 +178,12 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
         emit Claim(validator, msg.sender, amount);
     }
 
+    function manuallyClaimPendingUndelegates(address[] calldata validators) external {
+        for (uint256 i = 0; i < validators.length; i++) {
+            _stakingContract.claimPendingUndelegates(validators[i]);
+        }
+    }
+
     receive() external payable {
         require(address(msg.sender) == address(_stakingContract), "StakingPool: not a staking contract");
     }
