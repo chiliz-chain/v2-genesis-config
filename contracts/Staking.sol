@@ -424,7 +424,7 @@ contract Staking is IStaking, InjectorContextHolder {
 
     function _processUndelegateQueue(ValidatorDelegation storage delegation, uint64 beforeEpochExclude) internal returns (uint256 availableFunds) {
         uint64 undelegateGap = delegation.undelegateGap;
-        for (uint256 queueLength = delegation.undelegateQueue.length; undelegateGap < queueLength && gasleft() > CLAIM_BEFORE_GAS;) {
+        for (uint256 queueLength = delegation.undelegateQueue.length; undelegateGap < queueLength;) {
             DelegationOpUndelegate memory undelegateOp = delegation.undelegateQueue[undelegateGap];
             if (undelegateOp.epoch > beforeEpochExclude) {
                 break;

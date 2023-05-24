@@ -8,7 +8,7 @@
 const {newMockContract, waitForNextEpoch} = require("./helper");
 
 contract("StakingPool", async (accounts) => {
-  const [owner, staker1, staker2, validator1] = accounts
+  const [owner, staker1, staker2, validator1, validator2] = accounts
   it("empty delegator claim should work", async () => {
     const {parlia} = await newMockContract(owner, {epochBlockInterval: '50'})
     await parlia.addValidator(validator1);
@@ -57,5 +57,33 @@ contract("StakingPool", async (accounts) => {
     // console.log(`Ratio: ${(await stakingPool.getRatio(validator1)).toString()}`)
     // rest can't be claimed due to rounding problem (now can, because we increased the precision)
     assert.equal((await stakingPool.getStakedAmount(validator1, staker1)).toString(), '1009999999999999999');
+  })
+  it("make sure gas race is not possible for different validators", async () => {
+    const {parlia, stakingPool} = await newMockContract(owner, {epochBlockInterval: '10'})
+    await parlia.addValidator(validator1);
+    await parlia.addValidator(validator2);
+    await stakingPool.stake(validator1, {from: staker1, value: '1000000000000000000'}); // 1.0
+    await stakingPool.stake(validator2, {from: staker2, value: '1000000000000000000'}); // 1.0
+    await waitForNextEpoch(parlia);
+    await stakingPool.unstake(validator1, '1000000000000000000', {from: staker1, gas: 1_000_000}); // 1.0
+    await stakingPool.unstake(validator2, '1000000000000000000', {from: staker2, gas: 292_000}); // 1.0
+    await waitForNextEpoch(parlia);
+    await stakingPool.claim(validator2, {from: staker2}); // staker2 claims before staker1
+    await stakingPool.claim(validator1, {from: staker1});
+  })
+  it("its possible to do manually undelegate claim", async () => {
+    const {parlia, stakingPool} = await newMockContract(owner, {epochBlockInterval: '10'})
+    await parlia.addValidator(validator1);
+    await parlia.addValidator(validator2);
+    await stakingPool.stake(validator1, {from: staker1, value: '1000000000000000000'}); // 1.0
+    await stakingPool.stake(validator2, {from: staker2, value: '1000000000000000000'}); // 1.0
+    await waitForNextEpoch(parlia);
+    await stakingPool.unstake(validator1, '1000000000000000000', {from: staker1, gas: 1_000_000}); // 1.0
+    await stakingPool.unstake(validator2, '1000000000000000000', {from: staker2, gas: 292_000}); // 1.0
+    await waitForNextEpoch(parlia);
+    await stakingPool.manuallyClaimPendingUndelegates([validator1]);
+    assert.equal('1000000000000000000', await web3.eth.getBalance(stakingPool.address));
+    await stakingPool.manuallyClaimPendingUndelegates([validator2]);
+    assert.equal('2000000000000000000', await web3.eth.getBalance(stakingPool.address));
   })
 });
