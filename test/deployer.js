@@ -84,4 +84,13 @@ contract("DeployerProxy", async (accounts) => {
     assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000001'), true)
     assert.equal(await deployer.isBanned('0x0000000000000000000000000000000000000001'), false)
   })
+  it("deployer can deploy factory and its whitelisted", async () => {
+    const TestDeployerFactory = artifacts.require('TestDeployerFactory');
+    const {deployer} = await newMockContract(owner);
+    await deployer.addDeployer(owner);
+    const deployerFactory = await TestDeployerFactory.new();
+    await deployer.registerDeployedContract(owner, deployerFactory.address);
+    assert.equal(await deployer.isDeployer(owner), true)
+    assert.equal(await deployer.isDeployer(deployerFactory.address), true)
+  });
 });

@@ -117,6 +117,10 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
         _smartContracts[impl] = dc;
         // emit event
         emit ContractDeployed(deployer, impl);
+        // make new contract deployer as well
+        if (!_contractDeployers[impl].exists) {
+            _addDeployer(impl);
+        }
     }
 
     function registerDeployedContract(address deployer, address impl) public onlyFromCoinbase virtual override {
