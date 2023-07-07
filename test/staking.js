@@ -296,6 +296,7 @@ contract("Staking", async (accounts) => {
     })
     await parlia.addValidator(validator1);
     await parlia.addValidator(validator2);
+    await waitForNextEpoch(parlia);
     assert.equal((await parlia.getValidatorStatus(validator1)).status.toString(), '1');
     assert.equal((await parlia.getValidatorStatus(validator2)).status.toString(), '1');
     // slash 5 times
@@ -341,6 +342,7 @@ contract("Staking", async (accounts) => {
     })
     await parlia.addValidator(validator1);
     await parlia.addValidator(validator2);
+    await waitForNextEpoch(parlia);
     assert.equal((await parlia.getValidatorStatus(validator1)).status.toString(), '1');
     assert.equal((await parlia.getValidatorStatus(validator2)).status.toString(), '1');
     // slash for 19 times
@@ -364,6 +366,7 @@ contract("Staking", async (accounts) => {
     })
     await parlia.addValidator(validator1);
     await parlia.addValidator(validator2);
+    await waitForNextEpoch(parlia);
     // we can't release validator if its active
     await expectError(parlia.releaseValidatorFromJail(validator2, {from: validator1}), 'not in jail')
     // all validators are active
@@ -522,5 +525,19 @@ contract("Staking", async (accounts) => {
     await parlia.registerValidator(validator1, '0', {from: validator1, value: '1000000000000000000'});
     // undelegate all funds
     await parlia.undelegate(validator1, '1000000000000000000', {from: validator1});
+  });
+  it("check total delegated calculation", async() => {
+    const {parlia, stakingPool} = await newMockContract(owner, {
+      genesisValidators: [ validator1 ],
+      epochBlockInterval: '100',
+    });
+    let epochBeforeStaking = await parlia.currentEpoch();
+    await stakingPool.stake(validator1, {from: staker1, value: '1000000000000000000'}); // 1.0
+    await waitForNextEpoch(parlia);
+    let epochAfterStaking = await parlia.currentEpoch();
+    const statusBefore = await parlia.getValidatorStatusAtEpoch(validator1, epochBeforeStaking);
+    assert.equal(statusBefore.totalDelegated, '0');
+    const statusAfter = await parlia.getValidatorStatusAtEpoch(validator1, epochAfterStaking);
+    assert.equal(statusAfter.totalDelegated, '1000000000000000000');
   });
 });
