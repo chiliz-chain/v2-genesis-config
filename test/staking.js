@@ -272,7 +272,10 @@ contract("Staking", async (accounts) => {
     assert.equal(stakerFee.toString(10), '1107766700000000000');
     // let's claim staker fee
     let delegatorBalanceBefore = new BigNumber(await web3.eth.getBalance(staker1));
-    let {logs, txCost} = await extractTxCost(await parlia.claimDelegatorFee(validator1, {from: staker1, gas: 1_000_000}));
+    let {logs, txCost} = await extractTxCost(await parlia.claimDelegatorFee(validator1, {
+      from: staker1,
+      gas: 1_000_000
+    }));
     assert.equal(logs[0].event, 'Claimed')
     assert.equal(logs[0].args.amount, '1107766700000000000')
     let delegatorBalanceAfter = new BigNumber(await web3.eth.getBalance(staker1));
@@ -460,7 +463,7 @@ contract("Staking", async (accounts) => {
   })
   it("jailed validator is removed from active validator set after new epoch", async () => {
     const {parlia} = await newMockContract(owner, {
-      genesisValidators: [ validator1, validator2 ],
+      genesisValidators: [validator1, validator2],
       epochBlockInterval: '50',
       validatorJailEpochLength: '1',
       misdemeanorThreshold: '5',
@@ -486,7 +489,7 @@ contract("Staking", async (accounts) => {
   });
   it("user can redelegate his staking rewards", async () => {
     const {parlia} = await newMockContract(owner, {
-      genesisValidators: [ validator1 ],
+      genesisValidators: [validator1],
       epochBlockInterval: '10',
     });
     // delegate 1 ether and distribute 1 ether as rewards (100% APY) with some dust
@@ -526,10 +529,10 @@ contract("Staking", async (accounts) => {
     // undelegate all funds
     await parlia.undelegate(validator1, '1000000000000000000', {from: validator1});
   });
-  it("check total delegated calculation", async() => {
+  it("check total delegated calculation", async () => {
     const {parlia, stakingPool} = await newMockContract(owner, {
-      genesisValidators: [ validator1 ],
-      epochBlockInterval: '100',
+      genesisValidators: [validator1],
+      epochBlockInterval: '10',
     });
     let epochBeforeStaking = await parlia.currentEpoch();
     await stakingPool.stake(validator1, {from: staker1, value: '1000000000000000000'}); // 1.0
@@ -539,5 +542,24 @@ contract("Staking", async (accounts) => {
     assert.equal(statusBefore.totalDelegated, '0');
     const statusAfter = await parlia.getValidatorStatusAtEpoch(validator1, epochAfterStaking);
     assert.equal(statusAfter.totalDelegated, '1000000000000000000');
+  });
+  it("total staked corrupts on validator activation", async () => {
+    const {parlia} = await newMockContract(owner, {
+      genesisValidators: [],
+      epochBlockInterval: '100',
+    });
+    await parlia.registerValidator(validator1, '1000', {value: '10000002000000000000000000'});
+    await waitForNextEpoch(parlia);
+    await parlia.delegate(validator1, {value: '13040000000000000000000'});
+    await waitForNextEpoch(parlia);
+    await parlia.activateValidator(validator1);
+    await parlia.delegate(validator1, {value: '2500000000000000000000'});
+    await parlia.delegate(validator1, {value: '4010000000000000000000'});
+    await parlia.delegate(validator1, {value: '158000000000000000000000'});
+    await waitForNextEpoch(parlia);
+    await parlia.delegate(validator1, {value: '1000000000000000000'});
+    await waitForNextEpoch(parlia);
+    const status = await parlia.getValidatorStatus(validator1);
+    assert.equal(status.totalDelegated, '10177553000000000000000000');
   });
 });
