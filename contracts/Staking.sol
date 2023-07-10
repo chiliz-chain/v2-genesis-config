@@ -246,8 +246,6 @@ contract Staking is IStaking, InjectorContextHolder {
         if (snapshot.totalDelegated > 0) {
             return snapshot;
         }
-        // make sure modification of prev epoch is impossible
-        require(epoch >= validator.changedAt, "epoch underflow");
         // find previous snapshot to copy parameters from it
         ValidatorSnapshot memory lastModifiedSnapshot = _validatorSnapshots[validator.validatorAddress][validator.changedAt];
         // last modified snapshot might store zero value, for first delegation it might happen and its not critical
