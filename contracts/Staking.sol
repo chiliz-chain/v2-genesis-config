@@ -842,9 +842,9 @@ contract Staking is IStaking, InjectorContextHolder {
         emit Paused(_paused);
     }
 
-    function forceTotalDelegated(address validatorAddress, uint112 totalDelegated) external onlyFromGovernance {
+    function forceTotalDelegated(address validatorAddress, uint112 totalDelegated, uint64 epoch) external onlyFromGovernance {
         Validator memory validator = _validatorsMap[validatorAddress];
-        ValidatorSnapshot storage snapshot = _touchValidatorSnapshot(validator, _nextEpoch());
+        ValidatorSnapshot storage snapshot = _touchValidatorSnapshot(validator, epoch);
         snapshot.totalDelegated = totalDelegated;
         emit ValidatorTotalDelegatedModified(validatorAddress, totalDelegated);
     }
