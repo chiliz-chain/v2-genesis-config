@@ -1697,7 +1697,7 @@
   version "0.2.0"
   resolved "https://codeload.github.com/Digital-MOB-Filecoin/filecoin-signing-tools-js/tar.gz/8f8e92157cac2556d35cab866779e9a8ea8a4e25"
   dependencies:
-    axios "^0.20.0"
+    axios "0.26.1"
     base32-decode "^1.0.0"
     base32-encode "^1.1.1"
     bip32 "^2.0.5"
