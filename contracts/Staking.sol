@@ -57,7 +57,7 @@ contract Staking is IStaking, InjectorContextHolder {
     event ValidatorSlashed(address indexed validator, uint32 slashes, uint64 epoch);
     event ValidatorJailed(address indexed validator, uint64 epoch);
     event ValidatorReleased(address indexed validator, uint64 epoch);
-    event ValidatorTotalDelegatedModified(address validators, uint112 totalDelegated);
+    event ValidatorFixed(address validators, uint112 totalDelegated);
 
     // staker events
     event Delegated(address indexed validator, address indexed staker, uint256 amount, uint64 epoch);
@@ -837,17 +837,17 @@ contract Staking is IStaking, InjectorContextHolder {
         emit Paused(_paused);
     }
 
-    function forceTotalDelegated(address validatorAddress, uint112 totalDelegated, uint64 epoch) external onlyFromGovernance virtual {
-        _setTotalDelegated(validatorAddress, totalDelegated, epoch);
+    function fixValidatorEpoch(address validatorAddress, uint112 totalDelegated, uint64 epoch) external onlyFromGovernance virtual {
+        _fixValidatorEpoch(validatorAddress, totalDelegated, epoch);
     }
 
-    function _setTotalDelegated(address validatorAddress, uint112 totalDelegated, uint64 epoch) internal {
+    function _fixValidatorEpoch(address validatorAddress, uint112 totalDelegated, uint64 epoch) internal {
         Validator memory validator = _validatorsMap[validatorAddress];
         ValidatorSnapshot memory snapshot = _validatorSnapshots[validatorAddress][epoch];
         require(snapshot.totalDelegated > 0, "empty snapshot");
         snapshot.totalDelegated = totalDelegated;
         _validatorSnapshots[validatorAddress][epoch] = snapshot;
-        emit ValidatorTotalDelegatedModified(validatorAddress, totalDelegated);
+        emit ValidatorFixed(validatorAddress, totalDelegated);
     }
 
     function _createOpDelegate(DelegationOpDelegate[] storage delegateQueue, uint64 epoch, uint112 amount) internal {

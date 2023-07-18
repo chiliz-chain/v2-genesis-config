@@ -562,7 +562,6 @@ contract("Staking", async (accounts) => {
     const status = await parlia.getValidatorStatus(validator1);
     assert.equal(status.totalDelegated.toString(), '46350002000000000000');
   });
-
   it("total delegated may be forced", async () => {
     const {parlia} = await newMockContract(owner, {
       genesisValidators: [],
@@ -579,20 +578,20 @@ contract("Staking", async (accounts) => {
     await parlia.delegate(validator1, {value: '1000000000000000000'});
 
     // change in initial epoch
-    await parlia.forceTotalDelegated(validator1, '1', epoch);
+    await parlia.fixValidatorEpoch(validator1, '1', epoch);
     status = await parlia.getValidatorStatusAtEpoch(validator1, epoch);
     assert.equal(status.totalDelegated.toString(), '10000000000')
 
     // change in epoch without rewards
     status = await parlia.getValidatorStatusAtEpoch(validator1, epoch.plus('1'));
     assert.equal(status.totalDelegated.toString(), '0')
-    await expectError(parlia.forceTotalDelegated(validator1, '1', epoch.plus('1')), "empty snapshot")
+    await expectError(parlia.fixValidatorEpoch(validator1, '1', epoch.plus('1')), "empty snapshot")
 
     // change in current epoch
     epoch = await parlia.currentEpoch();
     status = await parlia.getValidatorStatusAtEpoch(validator1, epoch);
     assert.equal(status.totalDelegated.toString(), '3000000000000000000')
-    await parlia.forceTotalDelegated(validator1, '1', epoch);
+    await parlia.fixValidatorEpoch(validator1, '1', epoch);
     status = await parlia.getValidatorStatusAtEpoch(validator1, epoch);
     assert.equal(status.totalDelegated.toString(), '10000000000');
 
@@ -600,7 +599,7 @@ contract("Staking", async (accounts) => {
     epoch = await parlia.nextEpoch();
     status = await parlia.getValidatorStatusAtEpoch(validator1, epoch);
     assert.equal(status.totalDelegated.toString(), '4000000000000000000')
-    await parlia.forceTotalDelegated(validator1, '1', epoch);
+    await parlia.fixValidatorEpoch(validator1, '1', epoch);
     status = await parlia.getValidatorStatusAtEpoch(validator1, epoch);
     assert.equal(status.totalDelegated.toString(), '10000000000');
   })
