@@ -48,11 +48,6 @@ contract Staking is IStaking, InjectorContextHolder {
      * beacon proxies that have a lot of expensive SLOAD instructions.
      */
     uint64 internal constant TRANSFER_GAS_LIMIT = 30000;
-    /**
-     * Some items are stored in the queues and we must iterate though them to
-     * execute one by one. Sometimes gas might not be enough for the tx execution.
-     */
-    uint32 internal constant CLAIM_BEFORE_GAS = 100_000;
 
     // validator events
     event ValidatorAdded(address indexed validator, address owner, uint8 status, uint16 commissionRate);
@@ -183,7 +178,7 @@ contract Staking is IStaking, InjectorContextHolder {
         uint96 totalRewards
     ) {
         Validator memory validator = _validatorsMap[validatorAddress];
-        ValidatorSnapshot memory snapshot = _touchValidatorSnapshotImmutable(validator, epoch);
+        ValidatorSnapshot memory snapshot = _fetchValidatorSnapshot(validator, epoch);
         return (
         ownerAddress = validator.ownerAddress,
         status = uint8(validator.status),
@@ -264,10 +259,10 @@ contract Staking is IStaking, InjectorContextHolder {
         return snapshot;
     }
 
-    function _touchValidatorSnapshotImmutable(Validator memory validator, uint64 epoch) internal view returns (ValidatorSnapshot memory) {
+    function _fetchValidatorSnapshot(Validator memory validator, uint64 epoch) internal view returns (ValidatorSnapshot memory) {
         ValidatorSnapshot memory snapshot = _validatorSnapshots[validator.validatorAddress][epoch];
         // if snapshot is already initialized then just return it
-        if (snapshot.totalDelegated > 0) {
+        if (snapshot.totalDelegated > 0 || epoch < validator.changedAt) {
             return snapshot;
         }
         // find previous snapshot to copy parameters from it
@@ -393,7 +388,7 @@ contract Staking is IStaking, InjectorContextHolder {
 
     function _processDelegateQueue(address validator, ValidatorDelegation storage delegation, uint64 beforeEpochExclude) internal returns (uint256 availableFunds) {
         uint64 delegateGap = delegation.delegateGap;
-        for (uint256 queueLength = delegation.delegateQueue.length; delegateGap < queueLength && gasleft() > CLAIM_BEFORE_GAS;) {
+        for (uint256 queueLength = delegation.delegateQueue.length; delegateGap < queueLength;) {
             DelegationOpDelegate memory delegateOp = delegation.delegateQueue[delegateGap];
             if (delegateOp.epoch >= beforeEpochExclude) {
                 break;
@@ -402,7 +397,7 @@ contract Staking is IStaking, InjectorContextHolder {
             if (delegateGap < queueLength - 1) {
                 voteChangedAtEpoch = delegation.delegateQueue[delegateGap + 1].epoch;
             }
-            for (; delegateOp.epoch < beforeEpochExclude && (voteChangedAtEpoch == 0 || delegateOp.epoch < voteChangedAtEpoch) && gasleft() > CLAIM_BEFORE_GAS; delegateOp.epoch++) {
+            for (; delegateOp.epoch < beforeEpochExclude && (voteChangedAtEpoch == 0 || delegateOp.epoch < voteChangedAtEpoch); delegateOp.epoch++) {
                 ValidatorSnapshot memory validatorSnapshot = _validatorSnapshots[validator][delegateOp.epoch];
                 if (validatorSnapshot.totalDelegated == 0) {
                     continue;
@@ -600,8 +595,8 @@ contract Staking is IStaking, InjectorContextHolder {
         require(_validatorsMap[validatorAddress].status == ValidatorStatus.Pending, "not pending");
         _activeValidatorsList.push(validatorAddress);
         validator.status = ValidatorStatus.Active;
-        _validatorsMap[validatorAddress] = validator;
         ValidatorSnapshot storage snapshot = _touchValidatorSnapshot(validator, _nextEpoch());
+        _validatorsMap[validatorAddress] = validator;
         emit ValidatorModified(validatorAddress, validator.ownerAddress, uint8(validator.status), snapshot.commissionRate);
     }
 
@@ -614,8 +609,8 @@ contract Staking is IStaking, InjectorContextHolder {
         require(_validatorsMap[validatorAddress].status == ValidatorStatus.Active, "not active");
         _removeValidatorFromActiveList(validatorAddress);
         validator.status = ValidatorStatus.Pending;
-        _validatorsMap[validatorAddress] = validator;
         ValidatorSnapshot storage snapshot = _touchValidatorSnapshot(validator, _nextEpoch());
+        _validatorsMap[validatorAddress] = validator;
         emit ValidatorModified(validatorAddress, validator.ownerAddress, uint8(validator.status), snapshot.commissionRate);
     }
 
@@ -637,8 +632,8 @@ contract Staking is IStaking, InjectorContextHolder {
         delete _validatorOwners[validator.ownerAddress];
         validator.ownerAddress = newOwner;
         _validatorOwners[newOwner] = validatorAddress;
-        _validatorsMap[validatorAddress] = validator;
         ValidatorSnapshot storage snapshot = _touchValidatorSnapshot(validator, _nextEpoch());
+        _validatorsMap[validatorAddress] = validator;
         emit ValidatorModified(validator.validatorAddress, validator.ownerAddress, uint8(validator.status), snapshot.commissionRate);
     }
 
