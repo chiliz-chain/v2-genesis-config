@@ -363,7 +363,7 @@ contract Staking is IStaking, InjectorContextHolder {
         emit Claimed(validator, delegator, availableFunds, beforeEpochExclude);
     }
 
-    function _redelegateDelegatorRewards(address validator, address delegator, uint64 beforeEpochExclude, bool withRewards, bool withUndelegates) internal {
+    function _redelegateDelegatorRewards(address validator, address delegator, uint64 beforeEpochExclude, bool withRewards, bool withUndelegates) internal returns (uint256 amountToStake, uint256 rewardsDust) {
         ValidatorDelegation storage delegation = _validatorDelegations[validator][delegator];
         // claim rewards and undelegates
         uint256 availableFunds = 0;
@@ -373,7 +373,7 @@ contract Staking is IStaking, InjectorContextHolder {
         if (withUndelegates) {
             availableFunds += _processUndelegateQueue(delegation, beforeEpochExclude);
         }
-        (uint256 amountToStake, uint256 rewardsDust) = _calcAvailableForRedelegateAmount(availableFunds);
+        (amountToStake, rewardsDust) = _calcAvailableForRedelegateAmount(availableFunds);
         // if we have something to re-stake then delegate it to the validator
         if (amountToStake > 0) {
             _delegateTo(delegator, validator, amountToStake);
@@ -785,9 +785,9 @@ contract Staking is IStaking, InjectorContextHolder {
         _transferDelegatorRewards(validator, msg.sender, _currentEpoch(), false, true);
     }
 
-    function redelegateDelegatorFee(address validator) external override {
+    function redelegateDelegatorFee(address validator) external override returns (uint256 amountToStake, uint256 rewardsDust) {
         // claim rewards in the redelegate mode (check function code for more info)
-        _redelegateDelegatorRewards(validator, msg.sender, _currentEpoch(), true, false);
+        return _redelegateDelegatorRewards(validator, msg.sender, _currentEpoch(), true, false);
     }
 
     function claimDelegatorFeeAtEpoch(address validatorAddress, uint64 beforeEpoch) external override {
