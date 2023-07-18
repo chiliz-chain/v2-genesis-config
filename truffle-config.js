@@ -30,6 +30,12 @@ module.exports = {
       network_id: "*", // Match any network id
       gas: 100_000_000
     },
+    local: {
+      host: "localhost",
+      port: 8545,
+      network_id: "*", // Match any network id
+      gas: 100_000_000
+    }
   },
   mocha: mochaOptions,
   plugins: [
