@@ -562,7 +562,6 @@ contract("Staking", async (accounts) => {
     const status = await parlia.getValidatorStatus(validator1);
     assert.equal(status.totalDelegated.toString(), '46350002000000000000');
   });
-
   it("total delegated may be forced", async () => {
     const {parlia} = await newMockContract(owner, {
       genesisValidators: [],

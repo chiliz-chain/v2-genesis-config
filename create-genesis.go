@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common/systemcontract"
 	"io/fs"
 	"io/ioutil"
 	"math/big"
@@ -14,7 +15,6 @@ import (
 	"unsafe"
 
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/common/systemcontract"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 
 	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
@@ -196,6 +196,7 @@ type ChilizForks struct {
 	RuntimeUpgradeBlock    *math.HexOrDecimal256 `json:"runtimeUpgradeBlock"`
 	DeployOriginBlock      *math.HexOrDecimal256 `json:"deployOriginBlock"`
 	DeploymentHookFixBlock *math.HexOrDecimal256 `json:"deploymentHookFixBlock"`
+	DeployerFactoryBlock   *math.HexOrDecimal256 `json:"deployerFactoryBlock"`
 }
 
 type genesisConfig struct {
@@ -230,8 +231,14 @@ func invokeConstructorOrPanic(genesis *core.Genesis, contract common.Address, ra
 	}
 }
 
-func createGenesisConfig(config genesisConfig, targetFile string) error {
-	genesis := defaultGenesisConfig(config)
+func createGenesisConfig(config genesisConfig, targetFile string, updateOnlyConfig bool) error {
+	suppressLogging := targetFile == "stdout"
+	var genesis *core.Genesis
+	if updateOnlyConfig {
+		genesis, _ = existingGenesisConfigOrDefault(config, targetFile, suppressLogging)
+	} else {
+		genesis = defaultGenesisConfig(config)
+	}
 	// extra data
 	genesis.ExtraData = createExtraData(config.Validators)
 	genesis.Config.Parlia.Epoch = uint64(config.ConsensusParams.EpochBlockInterval)
@@ -250,58 +257,59 @@ func createGenesisConfig(config genesisConfig, targetFile string) error {
 		initialStakes = append(initialStakes, initialStake)
 		initialStakeTotal.Add(initialStakeTotal, initialStake)
 	}
-	silent := targetFile == "stdout"
-	invokeConstructorOrPanic(genesis, stakingAddress, stakingRawArtifact, []string{"address[]", "uint256[]", "uint16"}, []interface{}{
-		config.Validators,
-		initialStakes,
-		uint16(config.CommissionRate),
-	}, silent, initialStakeTotal)
-	invokeConstructorOrPanic(genesis, chainConfigAddress, chainConfigRawArtifact, []string{"uint32", "uint32", "uint32", "uint32", "uint32", "uint32", "uint256", "uint256"}, []interface{}{
-		config.ConsensusParams.ActiveValidatorsLength,
-		config.ConsensusParams.EpochBlockInterval,
-		config.ConsensusParams.MisdemeanorThreshold,
-		config.ConsensusParams.FelonyThreshold,
-		config.ConsensusParams.ValidatorJailEpochLength,
-		config.ConsensusParams.UndelegatePeriod,
-		(*big.Int)(config.ConsensusParams.MinValidatorStakeAmount),
-		(*big.Int)(config.ConsensusParams.MinStakingAmount),
-	}, silent, nil)
-	invokeConstructorOrPanic(genesis, slashingIndicatorAddress, slashingIndicatorRawArtifact, []string{}, []interface{}{}, silent, nil)
-	invokeConstructorOrPanic(genesis, stakingPoolAddress, stakingPoolRawArtifact, []string{}, []interface{}{}, silent, nil)
-	var treasuryAddresses []common.Address
-	var treasuryShares []uint16
-	for k, v := range config.SystemTreasury {
-		treasuryAddresses = append(treasuryAddresses, k)
-		treasuryShares = append(treasuryShares, v)
-	}
-	invokeConstructorOrPanic(genesis, systemRewardAddress, systemRewardRawArtifact, []string{"address[]", "uint16[]"}, []interface{}{
-		treasuryAddresses, treasuryShares,
-	}, silent, nil)
-	invokeConstructorOrPanic(genesis, governanceAddress, governanceRawArtifact, []string{"uint256"}, []interface{}{
-		big.NewInt(config.VotingPeriod),
-	}, silent, nil)
-	invokeConstructorOrPanic(genesis, runtimeUpgradeAddress, runtimeUpgradeRawArtifact, []string{"address"}, []interface{}{
-		systemcontract.EvmHookRuntimeUpgradeAddress,
-	}, silent, nil)
-	invokeConstructorOrPanic(genesis, deployerProxyAddress, deployerProxyRawArtifact, []string{"address[]"}, []interface{}{
-		config.Deployers,
-	}, silent, nil)
-	// create system contract
-	genesis.Alloc[intermediarySystemAddress] = core.GenesisAccount{
-		Balance: big.NewInt(0),
-	}
-	// set staking allocation
-	stakingAlloc := genesis.Alloc[stakingAddress]
-	stakingAlloc.Balance = initialStakeTotal
-	genesis.Alloc[stakingAddress] = stakingAlloc
-	// apply faucet
-	for key, value := range config.Faucet {
-		balance, ok := new(big.Int).SetString(value[2:], 16)
-		if !ok {
-			return fmt.Errorf("failed to parse number (%s)", value)
+	if genesis.Alloc == nil {
+		invokeConstructorOrPanic(genesis, stakingAddress, stakingRawArtifact, []string{"address[]", "uint256[]", "uint16"}, []interface{}{
+			config.Validators,
+			initialStakes,
+			uint16(config.CommissionRate),
+		}, suppressLogging, initialStakeTotal)
+		invokeConstructorOrPanic(genesis, chainConfigAddress, chainConfigRawArtifact, []string{"uint32", "uint32", "uint32", "uint32", "uint32", "uint32", "uint256", "uint256"}, []interface{}{
+			config.ConsensusParams.ActiveValidatorsLength,
+			config.ConsensusParams.EpochBlockInterval,
+			config.ConsensusParams.MisdemeanorThreshold,
+			config.ConsensusParams.FelonyThreshold,
+			config.ConsensusParams.ValidatorJailEpochLength,
+			config.ConsensusParams.UndelegatePeriod,
+			(*big.Int)(config.ConsensusParams.MinValidatorStakeAmount),
+			(*big.Int)(config.ConsensusParams.MinStakingAmount),
+		}, suppressLogging, nil)
+		invokeConstructorOrPanic(genesis, slashingIndicatorAddress, slashingIndicatorRawArtifact, []string{}, []interface{}{}, suppressLogging, nil)
+		invokeConstructorOrPanic(genesis, stakingPoolAddress, stakingPoolRawArtifact, []string{}, []interface{}{}, suppressLogging, nil)
+		var treasuryAddresses []common.Address
+		var treasuryShares []uint16
+		for k, v := range config.SystemTreasury {
+			treasuryAddresses = append(treasuryAddresses, k)
+			treasuryShares = append(treasuryShares, v)
 		}
-		genesis.Alloc[key] = core.GenesisAccount{
-			Balance: balance,
+		invokeConstructorOrPanic(genesis, systemRewardAddress, systemRewardRawArtifact, []string{"address[]", "uint16[]"}, []interface{}{
+			treasuryAddresses, treasuryShares,
+		}, suppressLogging, nil)
+		invokeConstructorOrPanic(genesis, governanceAddress, governanceRawArtifact, []string{"uint256"}, []interface{}{
+			big.NewInt(config.VotingPeriod),
+		}, suppressLogging, nil)
+		invokeConstructorOrPanic(genesis, runtimeUpgradeAddress, runtimeUpgradeRawArtifact, []string{"address"}, []interface{}{
+			systemcontract.EvmHookRuntimeUpgradeAddress,
+		}, suppressLogging, nil)
+		invokeConstructorOrPanic(genesis, deployerProxyAddress, deployerProxyRawArtifact, []string{"address[]"}, []interface{}{
+			config.Deployers,
+		}, suppressLogging, nil)
+		// create system contract
+		genesis.Alloc[intermediarySystemAddress] = core.GenesisAccount{
+			Balance: big.NewInt(0),
+		}
+		// set staking allocation
+		stakingAlloc := genesis.Alloc[stakingAddress]
+		stakingAlloc.Balance = initialStakeTotal
+		genesis.Alloc[stakingAddress] = stakingAlloc
+		// apply faucet
+		for key, value := range config.Faucet {
+			balance, ok := new(big.Int).SetString(value[2:], 16)
+			if !ok {
+				return fmt.Errorf("failed to parse number (%s)", value)
+			}
+			genesis.Alloc[key] = core.GenesisAccount{
+				Balance: balance,
+			}
 		}
 	}
 	// save to file
@@ -321,6 +329,26 @@ func decimalToBigInt(value *math.HexOrDecimal256) *big.Int {
 		return nil
 	}
 	return (*big.Int)(value)
+}
+
+func existingGenesisConfigOrDefault(config genesisConfig, existingGenesisFile string, silent bool) (*core.Genesis, bool) {
+	bytes, err := os.ReadFile(existingGenesisFile)
+	if err != nil {
+		if !silent {
+			fmt.Printf("WARN: failed to find existing genesis config (%s), re-creating", existingGenesisFile)
+		}
+		return defaultGenesisConfig(config), false
+	}
+	genesis := &core.Genesis{}
+	if err := json.Unmarshal(bytes, genesis); err != nil {
+		if !silent {
+			fmt.Printf("ERR: failed to parse existing genesis config (%s), re-creating: %v", existingGenesisFile, err)
+		}
+		return defaultGenesisConfig(config), false
+	}
+	defaultConfig := defaultGenesisConfig(config)
+	genesis.Config = defaultConfig.Config
+	return genesis, true
 }
 
 func defaultGenesisConfig(config genesisConfig) *core.Genesis {
@@ -344,6 +372,7 @@ func defaultGenesisConfig(config genesisConfig) *core.Genesis {
 		RuntimeUpgradeBlock:    decimalToBigInt(config.Forks.RuntimeUpgradeBlock),
 		DeployOriginBlock:      decimalToBigInt(config.Forks.DeployOriginBlock),
 		DeploymentHookFixBlock: decimalToBigInt(config.Forks.DeploymentHookFixBlock),
+		DeployerFactoryBlock:   decimalToBigInt(config.Forks.DeployerFactoryBlock),
 		// Parlia config
 		Parlia: &params.ParliaConfig{
 			Period: 3,
@@ -488,7 +517,8 @@ var testNetConfig = genesisConfig{
 	Forks: ChilizForks{
 		RuntimeUpgradeBlock:    (*math.HexOrDecimal256)(big.NewInt(0)),
 		DeployOriginBlock:      (*math.HexOrDecimal256)(big.NewInt(2849000)),
-		DeploymentHookFixBlock: nil,
+		DeploymentHookFixBlock: (*math.HexOrDecimal256)(big.NewInt(6067300)),
+		DeployerFactoryBlock:   nil,
 	},
 }
 
@@ -540,6 +570,7 @@ var spicyConfig = genesisConfig{
 		RuntimeUpgradeBlock:    (*math.HexOrDecimal256)(big.NewInt(0)),
 		DeployOriginBlock:      (*math.HexOrDecimal256)(big.NewInt(0)),
 		DeploymentHookFixBlock: (*math.HexOrDecimal256)(big.NewInt(0)),
+		DeployerFactoryBlock:   nil,
 	},
 }
 
@@ -629,6 +660,7 @@ var mainNetConfig = genesisConfig{
 		RuntimeUpgradeBlock:    (*math.HexOrDecimal256)(big.NewInt(0)),
 		DeployOriginBlock:      (*math.HexOrDecimal256)(big.NewInt(0)),
 		DeploymentHookFixBlock: (*math.HexOrDecimal256)(big.NewInt(0)),
+		DeployerFactoryBlock:   nil, // TODO: "specify fork block here"
 	},
 }
 
@@ -648,30 +680,30 @@ func main() {
 		if len(args) > 1 {
 			outputFile = args[1]
 		}
-		err = createGenesisConfig(*genesis, outputFile)
+		err = createGenesisConfig(*genesis, outputFile, false)
 		if err != nil {
 			panic(err)
 		}
 		return
 	}
 	fmt.Printf("building localnet\n")
-	if err := createGenesisConfig(localNetConfig, "localnet.json"); err != nil {
+	if err := createGenesisConfig(localNetConfig, "localnet.json", false); err != nil {
 		panic(err)
 	}
 	fmt.Printf("\nbuilding devnet\n")
-	if err := createGenesisConfig(devNetConfig, "devnet.json"); err != nil {
+	if err := createGenesisConfig(devNetConfig, "devnet.json", false); err != nil {
 		panic(err)
 	}
 	fmt.Printf("\nbuilding scoville testnet\n")
-	if err := createGenesisConfig(testNetConfig, "testnet.json"); err != nil {
+	if err := createGenesisConfig(testNetConfig, "testnet.json", true); err != nil {
 		panic(err)
 	}
 	fmt.Printf("\nbuilding spicy testnet\n")
-	if err := createGenesisConfig(spicyConfig, "spicy.json"); err != nil {
+	if err := createGenesisConfig(spicyConfig, "spicy.json", true); err != nil {
 		panic(err)
 	}
 	fmt.Printf("\nbuilding mainnet\n")
-	if err := createGenesisConfig(mainNetConfig, "mainnet.json"); err != nil {
+	if err := createGenesisConfig(mainNetConfig, "mainnet.json", true); err != nil {
 		panic(err)
 	}
 	fmt.Printf("\n")
