@@ -603,4 +603,14 @@ contract("Staking", async (accounts) => {
     status = await parlia.getValidatorStatusAtEpoch(validator1, epoch);
     assert.equal(status.totalDelegated.toString(), '10000000000');
   })
+  it('pause disable un/delegations', async () => {
+    const {parlia} = await newMockContract(owner, {
+      genesisValidators: [],
+      epochBlockInterval: '10',
+    });
+    // pause
+    await parlia.togglePause();
+    // unpause
+    await parlia.togglePause();
+  })
 });

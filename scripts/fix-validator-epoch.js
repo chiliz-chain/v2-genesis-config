@@ -2,6 +2,12 @@ const {getLogsOrCache, switchNetwork, getEpochDuration, parseLog, format, sumLog
 const { Web3 } = require("web3");
 const BigNumber = require("bignumber.js");
 
+/**
+ * Envs:
+ * RPC - rpc for block fetch using latest web3 version
+ * VOTING_DURATION - duration of voting
+ */
+
 const BLOCK_LIMIT = 30_000_000;
 const DETAILED = false;
 
@@ -11,7 +17,7 @@ const Governance = artifacts.require('Governance');
 
 const StakingAddress = '0x0000000000000000000000000000000000001000';
 
-const web3Secondary = new Web3('http://localhost:8545');
+const web3Secondary = new Web3(process.env.RPC || web3._provider.host);
 
 const getBrokenEpochs = async () => {
   const staking = await Staking.at(StakingAddress);
@@ -155,7 +161,7 @@ const getBrokenEpochs = async () => {
       }
 
       result.push({
-        data: staking.contract.methods.fixValidatorEpoch(vldr, expectedTotalDelegated.toString(10), epoch).encodeABI(),
+        data: staking.contract.methods.fixValidatorEpoch(vldr, expectedTotalDelegated.dividedBy(10**10).toFixed(0), epoch).encodeABI(),
         validatorAddress: vldr,
         totalDelegated: expectedTotalDelegated.toString(10),
         epoch: epoch,
@@ -197,13 +203,18 @@ const proposeFixies = async (fixies) => {
   const governance = await Governance.at('0x0000000000000000000000000000000000007002');
 
   console.log(`to fix ${fixies.length} epochs`);
+  if (fixies.length === 0) {
+    throw Error('no epochs to fix');
+  }
 
   const targets = new Array(fixies.length).fill(StakingAddress);
   const values = new Array(fixies.length).fill('0x00');
   const calldatas = fixies.map((v) => v.data);
 
+  // console.log('calldata', calldatas);
 
-  const input = governance.contract.methods.propose(targets, values, calldatas, 'Fix validators epochs').encodeABI();
+
+  const input = governance.contract.methods.proposeWithCustomVotingPeriod(targets, values, calldatas, 'Fix validators epochs', process.env.VOTING_DURATION || '50').encodeABI();
 
   console.log('input data for proposal:', input)
 }
@@ -212,7 +223,7 @@ module.exports = async function(callback) {
   try {
     await switchNetwork(web3);
     const epochs = await getBrokenEpochs();
-    const proposal = await proposeFixies(epochs);
+    await proposeFixies(epochs);
   } catch (e) {
     console.error(e);
   } finally {

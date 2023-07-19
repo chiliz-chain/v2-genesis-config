@@ -130,6 +130,24 @@ const newMockContract = async (owner, params = {}) => {
   });
 }
 
+const setCode = (address, code) => {
+  return new Promise((resolve, reject) => {
+    web3.currentProvider.send({
+      jsonrpc: "2.0",
+      method: "evm_setAccountCode",
+      id: new Date().getTime(),
+      params: [address, code],
+    }, (err, result) => {
+      if (err) {
+        return reject(err);
+      }
+      const newBlockHash = web3.eth.getBlock("latest").hash;
+
+      return resolve(newBlockHash);
+    })
+  })
+}
+
 const advanceBlock = () => {
   return new Promise((resolve, reject) => {
     web3.currentProvider.send({
@@ -195,4 +213,5 @@ module.exports = {
   advanceBlock,
   createConstructorArgs,
   advanceBlocks,
+  setCode,
 }

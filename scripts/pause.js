@@ -1,20 +1,26 @@
 const Staking = artifacts.require("Staking");
 const Governance = artifacts.require('Governance');
 
-const StakingAddress = '0x0000000000000000000000000000000000001000';
+const STAKING_ADDRESS = '0x0000000000000000000000000000000000001000';
+const SLASHING_INDICATOR_ADDRESS = '0x0000000000000000000000000000000000001001';
+const SYSTEM_REWARD_ADDRESS = '0x0000000000000000000000000000000000001002';
+const STAKING_POOL_ADDRESS = '0x0000000000000000000000000000000000007001';
+const GOVERNANCE_ADDRESS = '0x0000000000000000000000000000000000007002';
+const CHAIN_CONFIG_ADDRESS = '0x0000000000000000000000000000000000007003';
+const RUNTIME_UPGRADE_ADDRESS = '0x0000000000000000000000000000000000007004';
+const DEPLOYER_PROXY_ADDRESS = '0x0000000000000000000000000000000000007005';
 
 const proposePause = async () => {
-  const staking = await Staking.at(StakingAddress);
-  const governance = await Governance.at('0x0000000000000000000000000000000000007002');
+  const staking = await Staking.at(STAKING_ADDRESS);
+  const governance = await Governance.at(GOVERNANCE_ADDRESS);
 
   console.log(`building pause proposal...`);
 
-  const targets = [StakingAddress]
+  const targets = [STAKING_ADDRESS]
   const values = ['0x00']
   const calldatas = [staking.contract.methods.togglePause().encodeABI()]
-
-  const input = governance.contract.methods.propose(targets, values, calldatas, 'Pause delegations and undelegations').encodeABI();
-
+  console.log(calldatas);
+  const input = governance.contract.methods.proposeWithCustomVotingPeriod(targets, values, calldatas, 'Pause delegations and undelegations', process.env.VOTING_DURATION || '50').encodeABI();
   console.log('input data for proposal:', input)
 }
 

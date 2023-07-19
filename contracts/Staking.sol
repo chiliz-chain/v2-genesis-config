@@ -832,7 +832,7 @@ contract Staking is IStaking, InjectorContextHolder {
         emit ValidatorSlashed(validatorAddress, slashesCount, epoch);
     }
 
-    function togglePause() external onlyFromGovernance {
+    function togglePause() external onlyFromGovernance virtual {
         _paused = !_paused;
         emit Paused(_paused);
     }
@@ -842,9 +842,8 @@ contract Staking is IStaking, InjectorContextHolder {
     }
 
     function _fixValidatorEpoch(address validatorAddress, uint112 totalDelegated, uint64 epoch) internal {
-        Validator memory validator = _validatorsMap[validatorAddress];
         ValidatorSnapshot memory snapshot = _validatorSnapshots[validatorAddress][epoch];
-        require(snapshot.totalDelegated > 0, "empty snapshot");
+        require(snapshot.totalDelegated > 0);
         snapshot.totalDelegated = totalDelegated;
         _validatorSnapshots[validatorAddress][epoch] = snapshot;
         emit ValidatorFixed(validatorAddress, totalDelegated);
