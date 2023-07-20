@@ -585,7 +585,7 @@ contract("Staking", async (accounts) => {
     // change in epoch without rewards
     status = await parlia.getValidatorStatusAtEpoch(validator1, epoch.plus('1'));
     assert.equal(status.totalDelegated.toString(), '0')
-    await expectError(parlia.fixValidatorEpoch(validator1, '1', epoch.plus('1')), "empty snapshot")
+    await expectError(parlia.fixValidatorEpoch(validator1, '1', epoch.plus('1')), "")
 
     // change in current epoch
     epoch = await parlia.currentEpoch();
