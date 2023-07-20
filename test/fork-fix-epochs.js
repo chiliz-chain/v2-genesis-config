@@ -175,23 +175,27 @@ const proposeFix = async (staking, governance) => {
   await executeProposal(proposalId, targets, calldatas, desc, governance);
 }
 
-
-contract("Forked staking", async (accounts) => {
-
-  const [account1, account2] = accounts;
-
+contract("fork fix", async (accounts) => {
   let staking, runtimeUpgrade, governance, activeValidatorSet;
-
+  let notSupported = false;
   before(async () => {
-    staking = await Staking.at(STAKING_ADDRESS);
-    runtimeUpgrade = await RuntimeUpgrade.at(RUNTIME_UPGRADE_ADDRESS);
-    governance = await Governance.at(GOVERNANCE_ADDRESS);
-    activeValidatorSet = await staking.getValidators();
+    try {
+      staking = await Staking.at(STAKING_ADDRESS);
+      runtimeUpgrade = await RuntimeUpgrade.at(RUNTIME_UPGRADE_ADDRESS);
+      governance = await Governance.at(GOVERNANCE_ADDRESS);
+      activeValidatorSet = await staking.getValidators();
+    } catch (e) {
+      if (e.message.includes('no code at address')) {
+        notSupported = true;
+        console.error(`Can't run fork test because test env is not a fork of mainnet`)
+      }
+    }
   })
-
-  it("fix", async () => {
-    await upgradeContract(STAKING_ADDRESS);
-    await proposePause(staking, governance);
-    await proposeFix(staking, governance);
+  it("test proposal migration", async () => {
+    if (!notSupported) {
+      await upgradeContract(STAKING_ADDRESS);
+      await proposePause(staking, governance);
+      await proposeFix(staking, governance);
+    }
   }).timeout(2_000_000)
 });
