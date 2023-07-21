@@ -24,6 +24,12 @@ module.exports = {
     }
   },
   networks: {
+    chiliz: {
+      host: "localhost",
+      port: 8545,
+      network_id: "*", // Match any network id
+      gas: 100_000_000
+    },
     ganache: {
       host: "localhost",
       port: 7545,

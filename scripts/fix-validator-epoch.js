@@ -9,7 +9,7 @@ const BigNumber = require("bignumber.js");
  */
 
 const BLOCK_LIMIT = 30_000_000;
-const DETAILED = false;
+const DETAILED = true;
 
 const Staking = artifacts.require("Staking");
 const StakingPool = artifacts.require("StakingPool");

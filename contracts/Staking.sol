@@ -694,6 +694,8 @@ contract Staking is IStaking, InjectorContextHolder {
         // increase total pending rewards for validator for current epoch
         ValidatorSnapshot storage currentSnapshot = _touchValidatorSnapshot(validator, _currentEpoch());
         currentSnapshot.totalRewards += uint96(msg.value);
+        // save new validator status
+        _validatorsMap[validatorAddress] = validator;
     }
 
     function getValidatorFee(address validatorAddress) external override view returns (uint256) {
