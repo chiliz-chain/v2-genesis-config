@@ -1,5 +1,6 @@
 const fs = require('fs');
 const BigNumber = require("bignumber.js");
+const {ETH_DATA_FORMAT} = require("web3");
 
 let chainId;
 
@@ -83,6 +84,66 @@ const sumLogs = (logs) => {
 
 const format = (big) => new BigNumber(big).dividedBy(10**18).toString(10);
 
+const getDeposits = async (web3) => {
+  const suffixKey = await web3.eth.getChainId();
+  let currentBlock = 1;
+
+  let depositTxs = {};
+  try {
+    fs.mkdirSync('./cache');
+  } catch (e) {
+  }
+  const cacheKey = `./cache/deposit_txs_${suffixKey}.json`;
+  try {
+    const cache = fs.readFileSync(cacheKey, 'utf8');
+    if (cache.length > 0) {
+      depositTxs = JSON.parse(cache);
+      for (const [_, item] of Object.entries(depositTxs)) {
+        for (const [_, deposits] of Object.entries(item)) {
+          for (const deposit of deposits) {
+            if (parseInt(deposit.blockNumber, 16) > currentBlock) {
+              // gap 1 block to not re-download latest block
+              currentBlock = parseInt(deposit.blockNumber, 16) + 1;
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error(`failed to read cache: ${e}`);
+  }
+
+  let latestBlockNumber = Number(await web3.eth.getBlockNumber());
+  const CHUNK_SIZE = 10;
+  let chunk = [];
+  for (let i = currentBlock; i <= latestBlockNumber; i++) {
+    chunk.push((async(blockNum) => {
+      if (blockNum % 1000 === 0) {
+        console.log(` ~ block: ${blockNum} (${100*blockNum/latestBlockNumber}%)`)
+      }
+      const block = await web3.eth.getBlock(blockNum, true, ETH_DATA_FORMAT);
+      if (!block.transactions) return;
+      const txs = block.transactions.filter((tx) => tx.input.startsWith('0xf340fa01'));
+      for (const tx of txs) {
+        const validator = '0x' + tx.input.substring(34)
+        if (!depositTxs[validator]) depositTxs[validator] = {};
+        let epoch = Math.floor(blockNum / 28800);
+        if (!depositTxs[validator][epoch]) depositTxs[validator][epoch] = [];
+        depositTxs[validator][epoch].push(tx);
+      }
+    })(i));
+    if (chunk.length >= CHUNK_SIZE) {
+      await Promise.all(chunk);
+      chunk = [];
+    }
+  }
+  if (chunk.length >= 0) {
+    await Promise.all(chunk);
+  }
+  fs.writeFileSync(cacheKey, JSON.stringify(depositTxs))
+  return depositTxs;
+}
+
 module.exports = {
   getLogsOrCache,
   format,
@@ -90,4 +151,5 @@ module.exports = {
   parseLog,
   switchNetwork,
   getEpochDuration,
+  getDeposits,
 }

@@ -1,4 +1,4 @@
-const {getLogsOrCache, switchNetwork, getEpochDuration, parseLog, format, sumLogs} = require("./utils");
+const {getLogsOrCache, switchNetwork, getEpochDuration, parseLog, format, sumLogs, getDeposits} = require("./utils");
 const { Web3 } = require("web3");
 const BigNumber = require("bignumber.js");
 
@@ -36,7 +36,7 @@ const getBrokenEpochs = async () => {
   // fill data
   for (let epoch = 0; epoch <= CURRENT_EPOCH + 1; epoch++) {
     for (const [_, v] of validatorSet.entries()) {
-      v[epoch] = { status: null, delegations: [], undelegations: [], claims: [] }
+      v[epoch] = { status: null, delegations: [], undelegations: [], claims: [], deposits: [] }
     }
   }
 
@@ -124,10 +124,20 @@ const getBrokenEpochs = async () => {
     v[epoch].claims.push(claim);
   }
 
+  const deposits = await getDeposits(web3Secondary);
+  for (const vldr of Object.keys(deposits)) {
+    const v = validatorSet.get(vldr);
+    if (!v) continue;
+
+    for (const [epoch, d] of Object.entries(deposits[vldr])) {
+      v[epoch].deposits.push(...d);
+    }
+  }
+
   // get changed epochs
   for (const [vldr, v] of validatorSet.entries()) {
     for (const [epoch, data] of Object.entries(v)) {
-      if (data.delegations.length > 0 || data.undelegations.length > 0) {
+      if (data.delegations.length > 0 || data.undelegations.length > 0 || data.deposits.length > 0) {
         data.status = await staking.getValidatorStatusAtEpoch(vldr, epoch);
       }
     }
@@ -140,25 +150,32 @@ const getBrokenEpochs = async () => {
     let totalDelegated = new BigNumber('0');
     let totalUndelegated = new BigNumber('0');
 
+    let totalDeposited = new BigNumber('0');
+    let totalDepositedStatus = new BigNumber('0');
+
     for (const [epoch, data] of Object.entries(v)) {
 
       const delegated = sumLogs(data.delegations);
       const undelegated = sumLogs(data.undelegations);
       const claimed = sumLogs(data.claims);
+      const deposited = data.deposits.reduce((sum, v) => sum.plus(v.value, 16), new BigNumber(0));
 
       // do not log if no un/delegations
-      if (delegated.eq('0') && undelegated.eq('0')) continue;
+      if (delegated.eq('0') && undelegated.eq('0') && deposited.eq('0')) continue;
 
       totalDelegated = totalDelegated.plus(delegated);
       totalUndelegated = totalUndelegated.plus(undelegated);
       const expectedTotalDelegated = totalDelegated.minus(totalUndelegated);
 
+      totalDeposited = totalDeposited.plus(deposited);
+      totalDepositedStatus = totalDepositedStatus.plus(data.status.totalRewards);
 
-      if (new BigNumber(data.status.totalDelegated).eq(expectedTotalDelegated)) {
-        continue;
-      } else {
-        DETAILED && console.log('\ntotal delegated from status not eq to (delegated-undelegated) ↓↓↓')
+      let isCorrect = true;
+      if (!new BigNumber(data.status.totalDelegated).eq(expectedTotalDelegated)) {
+        DETAILED && console.log('↓↓↓ total delegated from status not eq to delegated-undelegated')
+        isCorrect = false;
       }
+      if (isCorrect) continue;
 
       result.push({
         data: staking.contract.methods.fixValidatorEpoch(vldr, expectedTotalDelegated.dividedBy(10**10).toFixed(0), epoch).encodeABI(),
@@ -211,7 +228,7 @@ const proposeFixies = async (fixies) => {
   const values = new Array(fixies.length).fill('0x00');
   const calldatas = fixies.map((v) => v.data);
 
-  // console.log('calldata', calldatas);
+  console.log('calldata', JSON.stringify(calldatas, null, 2));
 
 
   const input = governance.contract.methods.proposeWithCustomVotingPeriod(targets, values, calldatas, 'Fix validators epochs', process.env.VOTING_DURATION || '50').encodeABI();
