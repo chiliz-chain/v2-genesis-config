@@ -68,7 +68,7 @@ contract("Governance", async (accounts) => {
       genesisValidators: [validator1, validator2], votingPeriod: '5',
     });
     await parlia.delegate(validator1, {value: '1000000000000000000', from: owner}); // 50%
-    await parlia.delegate(validator2, {value: '1000000000000000000', from: owner}); // 50%
+    await parlia.delegate(validator2, {value: '2000000000000000000', from: owner}); // 50%
     await waitForNextEpoch(parlia);
     // an example of malicious proposal
     const res1 = await governance.propose([owner], ['0'], ['0x'], 'empty proposal', {from: validator1});

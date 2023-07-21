@@ -231,7 +231,7 @@ const proposeFixies = async (fixies) => {
   console.log('calldata', JSON.stringify(calldatas, null, 2));
 
 
-  const input = governance.contract.methods.proposeWithCustomVotingPeriod(targets, values, calldatas, 'Fix validators epochs', process.env.VOTING_DURATION || '50').encodeABI();
+  const input = governance.contract.methods.proposeWithCustomVotingPeriod(targets, values, calldatas, 'Fix validators epochs', process.env.VOTING_DURATION || '500').encodeABI();
 
   console.log('input data for proposal:', input)
 }
