@@ -548,18 +548,69 @@ contract("Staking", async (accounts) => {
       genesisValidators: [],
       epochBlockInterval: '100',
     });
-    await parlia.registerValidator(validator1, '1000', {value: '10000002000000000000000000'});
+    await parlia.registerValidator(validator1, '1000', {value: '10000002000000000000'});
     await waitForNextEpoch(parlia);
-    await parlia.delegate(validator1, {value: '13040000000000000000000'});
+    await parlia.delegate(validator1, {value: '13040000000000000000'});
     await waitForNextEpoch(parlia);
     await parlia.activateValidator(validator1);
-    await parlia.delegate(validator1, {value: '2500000000000000000000'});
-    await parlia.delegate(validator1, {value: '4010000000000000000000'});
-    await parlia.delegate(validator1, {value: '158000000000000000000000'});
+    await parlia.delegate(validator1, {value: '2500000000000000000'});
+    await parlia.delegate(validator1, {value: '4010000000000000000'});
+    await parlia.delegate(validator1, {value: '15800000000000000000'});
     await waitForNextEpoch(parlia);
     await parlia.delegate(validator1, {value: '1000000000000000000'});
     await waitForNextEpoch(parlia);
     const status = await parlia.getValidatorStatus(validator1);
-    assert.equal(status.totalDelegated, '10177553000000000000000000');
+    assert.equal(status.totalDelegated.toString(), '46350002000000000000');
   });
+  it("total delegated may be forced", async () => {
+    const {parlia} = await newMockContract(owner, {
+      genesisValidators: [],
+      epochBlockInterval: '10',
+    });
+    let epoch = new BigNumber(await parlia.nextEpoch()), status;
+    await parlia.registerValidator(validator1, '1000', {value: '1000000000000000000'});
+    await waitForNextEpoch(parlia);
+    await waitForNextEpoch(parlia);
+    await parlia.delegate(validator1, {value: '1000000000000000000'});
+    await waitForNextEpoch(parlia);
+    await parlia.delegate(validator1, {value: '1000000000000000000'});
+    await waitForNextEpoch(parlia);
+    await parlia.delegate(validator1, {value: '1000000000000000000'});
+
+    // change in initial epoch
+    await parlia.fixValidatorEpoch(validator1, '1', epoch);
+    status = await parlia.getValidatorStatusAtEpoch(validator1, epoch);
+    assert.equal(status.totalDelegated.toString(), '10000000000')
+
+    // change in epoch without rewards
+    status = await parlia.getValidatorStatusAtEpoch(validator1, epoch.plus('1'));
+    assert.equal(status.totalDelegated.toString(), '0')
+    await expectError(parlia.fixValidatorEpoch(validator1, '1', epoch.plus('1')), "")
+
+    // change in current epoch
+    epoch = await parlia.currentEpoch();
+    status = await parlia.getValidatorStatusAtEpoch(validator1, epoch);
+    assert.equal(status.totalDelegated.toString(), '3000000000000000000')
+    await parlia.fixValidatorEpoch(validator1, '1', epoch);
+    status = await parlia.getValidatorStatusAtEpoch(validator1, epoch);
+    assert.equal(status.totalDelegated.toString(), '10000000000');
+
+    // change in next epoch
+    epoch = await parlia.nextEpoch();
+    status = await parlia.getValidatorStatusAtEpoch(validator1, epoch);
+    assert.equal(status.totalDelegated.toString(), '4000000000000000000')
+    await parlia.fixValidatorEpoch(validator1, '1', epoch);
+    status = await parlia.getValidatorStatusAtEpoch(validator1, epoch);
+    assert.equal(status.totalDelegated.toString(), '10000000000');
+  })
+  it('pause disable un/delegations', async () => {
+    const {parlia} = await newMockContract(owner, {
+      genesisValidators: [],
+      epochBlockInterval: '10',
+    });
+    // pause
+    await parlia.togglePause();
+    // unpause
+    await parlia.togglePause();
+  })
 });
