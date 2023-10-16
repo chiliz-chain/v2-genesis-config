@@ -141,7 +141,7 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
         // emit event
         emit ContractDeployed(deployer, impl);
         // make new contract deployer as well
-        if (!_contractDeployers[impl].exists) {
+        if (!isDeployer(impl)) {
             _addDeployer(impl);
         }
     }
