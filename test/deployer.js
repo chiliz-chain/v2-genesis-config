@@ -104,15 +104,18 @@ contract("DeployerProxy", async (accounts) => {
   it("enable disable deployer whitelist", async () => {
     const {deployer} = await newMockContract(owner);
     assert.equal(await deployer.isDeployerWhitelistEnabled(), true)
+    assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000001'), false)
     // disable whitelist
     const r1 = await deployer.toggleDeployerWhitelist(false)
     assert.equal(r1.logs[0].event, 'DeployerWhitelistEnabled')
     assert.equal(r1.logs[0].args.state, false)
     assert.equal(await deployer.isDeployerWhitelistEnabled(), false)
+    assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000001'), true)
     // enable whitelist
     const r2 = await deployer.toggleDeployerWhitelist(true)
     assert.equal(r2.logs[0].event, 'DeployerWhitelistEnabled')
     assert.equal(r2.logs[0].args.state, true)
     assert.equal(await deployer.isDeployerWhitelistEnabled(), true)
+    assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000001'), false)
   });
 });

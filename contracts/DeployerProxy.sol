@@ -65,6 +65,9 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
     }
 
     function isDeployer(address account) public override view returns (bool) {
+        if (!_deployerWhitelistEnabled) {
+            return true;
+        }
         return _contractDeployers[account].exists;
     }
 
