@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import "./Injector.sol";
 
 contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
-
+    event DeployerWhitelistEnabled(bool indexed state);
     event DeployerAdded(address indexed account);
     event DeployerRemoved(address indexed account);
     event DeployerBanned(address indexed account);
@@ -34,14 +34,34 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
 
     mapping(address => Deployer) private _contractDeployers;
     mapping(address => SmartContract) private _smartContracts;
+    bool internal _deployerWhitelistEnabled;
+
+    modifier onlyWhenWhitelistEnabled {
+        require(_deployerWhitelistEnabled, "Deployer: whitelist is disabled");
+        _;
+    }
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
+        _deployerWhitelistEnabled = true;
     }
 
     function ctor(address[] memory deployers) external onlyInitializing {
         for (uint256 i = 0; i < deployers.length; i++) {
             _addDeployer(deployers[i]);
         }
+    }
+
+    function toggleDeployerWhitelist(bool state) public onlyFromGovernance virtual {
+        _toggleDeployerWhitelist(state);
+    }
+
+    function _toggleDeployerWhitelist(bool state) internal {
+        _deployerWhitelistEnabled = state;
+        emit DeployerWhitelistEnabled(_deployerWhitelistEnabled);
+    }
+
+    function isDeployerWhitelistEnabled() public view returns (bool) {
+        return _deployerWhitelistEnabled;
     }
 
     function isDeployer(address account) public override view returns (bool) {
@@ -56,7 +76,7 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
         _addDeployer(account);
     }
 
-    function _addDeployer(address account) internal {
+    function _addDeployer(address account) internal onlyWhenWhitelistEnabled {
         require(!_contractDeployers[account].exists, "Deployer: deployer already exist");
         _contractDeployers[account] = Deployer({
         exists : true,
@@ -70,7 +90,7 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
         _removeDeployer(account);
     }
 
-    function _removeDeployer(address account) internal {
+    function _removeDeployer(address account) internal onlyWhenWhitelistEnabled {
         require(_contractDeployers[account].exists, "Deployer: deployer doesn't exist");
         delete _contractDeployers[account];
         emit DeployerRemoved(account);

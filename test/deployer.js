@@ -23,6 +23,14 @@ contract("DeployerProxy", async (accounts) => {
     assert.equal(r2.logs[0].args.account, '0x0000000000000000000000000000000000000001')
     assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000001'), false)
   });
+  it("add remove deployer not possible when deployer whitelist is disabled", async () => {
+    const {deployer} = await newMockContract(owner);
+    assert.equal(await deployer.isDeployerWhitelistEnabled(), true) //sanity check
+    await deployer.toggleDeployerWhitelist(false)
+
+    await expectError(deployer.addDeployer('0x0000000000000000000000000000000000000001'), 'Deployer: whitelist is disabled');
+    await expectError(deployer.removeDeployer('0x0000000000000000000000000000000000000001'), 'Deployer: whitelist is disabled');
+  });
   it("disable/enable smart contract", async () => {
     const from = '0x0000000000000000000000000000000000000001';
     const {deployer} = await newMockContract(from, {
@@ -92,5 +100,19 @@ contract("DeployerProxy", async (accounts) => {
     await deployer.registerDeployedContract(owner, deployerFactory.address);
     assert.equal(await deployer.isDeployer(owner), true)
     assert.equal(await deployer.isDeployer(deployerFactory.address), true)
+  });
+  it("enable disable deployer whitelist", async () => {
+    const {deployer} = await newMockContract(owner);
+    assert.equal(await deployer.isDeployerWhitelistEnabled(), true)
+    // disable whitelist
+    const r1 = await deployer.toggleDeployerWhitelist(false)
+    assert.equal(r1.logs[0].event, 'DeployerWhitelistEnabled')
+    assert.equal(r1.logs[0].args.state, false)
+    assert.equal(await deployer.isDeployerWhitelistEnabled(), false)
+    // enable whitelist
+    const r2 = await deployer.toggleDeployerWhitelist(true)
+    assert.equal(r2.logs[0].event, 'DeployerWhitelistEnabled')
+    assert.equal(r2.logs[0].args.state, true)
+    assert.equal(await deployer.isDeployerWhitelistEnabled(), true)
   });
 });
