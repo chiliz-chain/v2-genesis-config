@@ -23,14 +23,6 @@ contract("DeployerProxy", async (accounts) => {
     assert.equal(r2.logs[0].args.account, '0x0000000000000000000000000000000000000001')
     assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000001'), false)
   });
-  it("add remove deployer not possible when deployer whitelist is disabled", async () => {
-    const {deployer} = await newMockContract(owner);
-    assert.equal(await deployer.isDeployerWhitelistEnabled(), true) //sanity check
-    await deployer.toggleDeployerWhitelist(false)
-
-    await expectError(deployer.addDeployer('0x0000000000000000000000000000000000000001'), 'Deployer: whitelist is disabled');
-    await expectError(deployer.removeDeployer('0x0000000000000000000000000000000000000001'), 'Deployer: whitelist is disabled');
-  });
   it("disable/enable smart contract", async () => {
     const from = '0x0000000000000000000000000000000000000001';
     const {deployer} = await newMockContract(from, {
@@ -97,16 +89,26 @@ contract("DeployerProxy", async (accounts) => {
     assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000004'), false)
   })
   it("deployer can be banned and unbanned", async () => {
-    const {deployer} = await newMockContract(owner);
-    await deployer.addDeployer('0x0000000000000000000000000000000000000001');
-    assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000001'), true)
-    assert.equal(await deployer.isBanned('0x0000000000000000000000000000000000000001'), false)
-    await deployer.banDeployer('0x0000000000000000000000000000000000000001');
-    assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000001'), true)
-    assert.equal(await deployer.isBanned('0x0000000000000000000000000000000000000001'), true)
-    await deployer.unbanDeployer('0x0000000000000000000000000000000000000001');
-    assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000001'), true)
-    assert.equal(await deployer.isBanned('0x0000000000000000000000000000000000000001'), false)
+    const test = async (whitelistOff) => {
+      const {deployer} = await newMockContract(owner);
+      if (whitelistOff) {
+        await deployer.toggleDeployerWhitelist(false);
+        assert.equal(await deployer.isDeployerWhitelistEnabled(), false);
+      }
+      await deployer.addDeployer('0x0000000000000000000000000000000000000001');
+      assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000001'), true)
+      assert.equal(await deployer.isBanned('0x0000000000000000000000000000000000000001'), false)
+      await deployer.banDeployer('0x0000000000000000000000000000000000000001');
+      assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000001'), true)
+      assert.equal(await deployer.isBanned('0x0000000000000000000000000000000000000001'), true)
+      await deployer.unbanDeployer('0x0000000000000000000000000000000000000001');
+      assert.equal(await deployer.isDeployer('0x0000000000000000000000000000000000000001'), true)
+      assert.equal(await deployer.isBanned('0x0000000000000000000000000000000000000001'), false)
+    }
+
+    // test with whitelist on and off
+    await test(false);
+    await test(true);
   })
   it("deployer can deploy factory and its whitelisted", async () => {
     const TestDeployerFactory = artifacts.require('TestDeployerFactory');

@@ -75,11 +75,11 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
         return _contractDeployers[account].banned;
     }
 
-    function addDeployer(address account) public onlyFromGovernance virtual override {
+    function addDeployer(address account) public onlyWhenWhitelistEnabled onlyFromGovernance virtual override {
         _addDeployer(account);
     }
 
-    function _addDeployer(address account) internal onlyWhenWhitelistEnabled {
+    function _addDeployer(address account) internal {
         require(!_contractDeployers[account].exists, "Deployer: deployer already exist");
         _contractDeployers[account] = Deployer({
         exists : true,
@@ -89,11 +89,11 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
         emit DeployerAdded(account);
     }
 
-    function removeDeployer(address account) public onlyFromGovernance virtual override {
+    function removeDeployer(address account) public onlyWhenWhitelistEnabled onlyFromGovernance virtual override {
         _removeDeployer(account);
     }
 
-    function _removeDeployer(address account) internal onlyWhenWhitelistEnabled {
+    function _removeDeployer(address account) internal {
         require(_contractDeployers[account].exists, "Deployer: deployer doesn't exist");
         delete _contractDeployers[account];
         emit DeployerRemoved(account);
@@ -104,8 +104,10 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
     }
 
     function _banDeployer(address account) internal {
-        require(_contractDeployers[account].exists, "Deployer: deployer doesn't exist");
         require(!_contractDeployers[account].banned, "Deployer: deployer already banned");
+        if (!_contractDeployers[account].exists) {
+            _addDeployer(account);
+        }
         _contractDeployers[account].banned = true;
         emit DeployerBanned(account);
     }
