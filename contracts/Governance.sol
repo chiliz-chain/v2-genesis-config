@@ -55,7 +55,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimpleUpgradeable,
         return GovernorUpgradeable.propose(targets, values, calldatas, description);
     }
 
-    function addProposer(address proposer) external onlyFromGovernance {
+    function addProposer(address proposer) external onlyFromGovernance virtual {
         _addProposer(proposer);
     }
 
@@ -72,15 +72,15 @@ contract Governance is InjectorContextHolder, GovernorCountingSimpleUpgradeable,
     }
 
     modifier onlyProposer() {
-        if (!_registryActivated) {
-            require(_stakingContract.isValidatorActive(_stakingContract.getValidatorByOwner(msg.sender)), "Governance: only validator owner");
-        } else {
-            require(isProposer(msg.sender), "Governance: only proposer");
-        }
+        require(isProposer(msg.sender), "Governance: only proposer or active main validator owner");
         _;
     }
 
-    function activateProposerRegistry() external onlyFromGovernance {
+    function activateProposerRegistry() external onlyFromGovernance virtual {
+        _activateProposerRegistry();
+    }
+
+    function _activateProposerRegistry() internal {
         require(!_registryActivated, "Governance: registry already activated");
         address[] memory currentValidatorSet = _stakingContract.getValidators();
         for (uint256 i = 0; i < currentValidatorSet.length; i++) {
@@ -97,7 +97,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimpleUpgradeable,
     }
 
     function isProposer(address account) public view returns (bool) {
-        return _proposerRegistry[account];
+        return _proposerRegistry[account] || _stakingContract.isValidatorActive(_stakingContract.getValidatorByOwner(msg.sender));
     }
 
     function execute(

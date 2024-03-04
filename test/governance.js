@@ -41,7 +41,7 @@ const createTypedSignature = async (governance, voterBySig, message) => {
 };
 
 contract("Governance", async (accounts) => {
-  const [owner, validator1, validator2, owner1, owner2] = accounts;
+  const [owner, validator1, validator2, owner1, owner2, validator3, validator4, proposer] = accounts;
   it("voting power is well distributed for validators with different owners", async () => {
     const {parlia, governance} = await newMockContract(owner, {
       genesisValidators: [validator1, validator2],
@@ -68,7 +68,7 @@ contract("Governance", async (accounts) => {
       genesisValidators: [validator1, validator2], votingPeriod: '5',
     });
     await parlia.delegate(validator1, {value: '1000000000000000000', from: owner}); // 50%
-    await parlia.delegate(validator2, {value: '1000000000000000000', from: owner}); // 50%
+    await parlia.delegate(validator2, {value: '2000000000000000000', from: owner}); // 50%
     await waitForNextEpoch(parlia);
     // an example of malicious proposal
     const res1 = await governance.propose([owner], ['0'], ['0x'], 'empty proposal', {from: validator1});
@@ -114,5 +114,43 @@ contract("Governance", async (accounts) => {
     const res2 = await governance.castVoteBySig(proposalId, '1', sig.v, sig.r, sig.s);
     assert.equal(res2.logs[0].event, 'VoteCast');
     assert.equal(res2.logs[0].args.voter.toLowerCase(), voterBySig.getAddressString().toLowerCase());
+  });
+  it("anyone in proposer registry + active main validator owners can propose", async () => {
+    const validators = [validator1, validator2, validator3, validator4];
+    const {parlia, governance} = await newMockContract(owner, {
+      genesisValidators: validators, votingPeriod: '5',
+    });
+    await governance.activateProposerRegistry();
+    for (let i = 0; i < validators.length; i++) {
+      await parlia.delegate(validators[i], {value: `${4-i}000000000000000000`, from: owner});
+    }
+    await governance.addProposer(proposer);
+    await waitForNextEpoch(parlia);
+    
+    // all active main validators should be able to propose
+    const mainValidators = validators.slice(0, 3);
+    for (let i = 0; i < mainValidators.length; i++) {
+      const res = await governance.propose([owner], ['0'], ['0x'], `test proposal ${i}`, {from: mainValidators[i]});
+      assert.equal(res.logs[0].event, 'ProposalCreated');  
+    }
+    
+    // candidate can't propose
+    const candidateValidator = validators[validators.length-1];
+    await expectError(governance.propose([owner], ['0'], ['0x'], 'test proposal 4', {from: candidateValidator}), "Governance: only proposer or active main validator owner");
+
+    // proposer should be able to propose
+    const res4 = await governance.propose([owner], ['0'], ['0x'], 'test proposal 5', {from: proposer});
+    assert.equal(res4.logs[0].event, 'ProposalCreated');
+    
+    // an arbitrary account can't propose
+    await expectError(governance.propose([owner], ['0'], ['0x'], 'test proposal 6', {from: owner}), "Governance: only proposer or active main validator owner");
+
+    // active validator's new owner should be able to propose
+    await parlia.changeValidatorOwner(validator1, owner1, {from: validator1});
+    await parlia.changeValidatorOwner(validator1, owner2, {from: owner1}); // change twice because validator1 is already in registry
+    const res5 = await governance.propose([owner], ['0'], ['0x'], 'test proposal 7', {from: owner2});
+    assert.equal(res5.logs[0].event, 'ProposalCreated');
+    // old owner of the same validator shouldn't be able to propose
+    await expectError(governance.propose([owner], ['0'], ['0x'], 'test proposal 8', {from: owner1}), "Governance: only proposer or active main validator owner");
   });
 });

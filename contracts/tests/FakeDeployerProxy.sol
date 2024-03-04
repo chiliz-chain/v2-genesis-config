@@ -8,6 +8,10 @@ contract FakeDeployerProxy is DeployerProxy {
     constructor(bytes memory ctor) DeployerProxy(ctor) {
     }
 
+    function toggleDeployerWhitelist(bool state) public override {
+        _toggleDeployerWhitelist(state);
+    }
+
     function addDeployer(address account) public override {
         _addDeployer(account);
     }

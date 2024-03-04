@@ -69,16 +69,12 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
         {
             ValidatorPool memory validatorPool = _getValidatorPool(validator);
             // claim rewards from staking contract
-            (uint256 amountToStake, uint256 dustRewards) = _calcUnclaimedDelegatorFee(validatorPool);
+            (uint256 amountToStake, uint256 dustRewards) = _stakingContract.redelegateDelegatorFee(validatorPool.validatorAddress);
             // increase total accumulated rewards
             validatorPool.totalStakedAmount += amountToStake;
             validatorPool.dustRewards += dustRewards;
             // save validator pool changes
             _validatorPools[validator] = validatorPool;
-            // if we have something to redelegate then do this right now
-            if (amountToStake > 0) {
-                _stakingContract.redelegateDelegatorFee(validatorPool.validatorAddress);
-            }
         }
         _;
     }
@@ -176,6 +172,12 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
         Address.sendValue(payable(msg.sender), amount);
         // emit event
         emit Claim(validator, msg.sender, amount);
+    }
+
+    function manuallyClaimPendingUndelegates(address[] calldata validators) external {
+        for (uint256 i = 0; i < validators.length; i++) {
+            _stakingContract.claimPendingUndelegates(validators[i]);
+        }
     }
 
     receive() external payable {

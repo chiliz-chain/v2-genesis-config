@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import "./Injector.sol";
 
 contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
-
+    event DeployerWhitelistEnabled(bool indexed state);
     event DeployerAdded(address indexed account);
     event DeployerRemoved(address indexed account);
     event DeployerBanned(address indexed account);
@@ -34,8 +34,15 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
 
     mapping(address => Deployer) private _contractDeployers;
     mapping(address => SmartContract) private _smartContracts;
+    bool internal _deployerWhitelistEnabled;
+
+    modifier onlyWhenWhitelistEnabled {
+        require(_deployerWhitelistEnabled, "Deployer: whitelist is disabled");
+        _;
+    }
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
+        _deployerWhitelistEnabled = true;
     }
 
     function ctor(address[] memory deployers) external onlyInitializing {
@@ -44,7 +51,23 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
         }
     }
 
+    function toggleDeployerWhitelist(bool state) public onlyFromGovernance virtual {
+        _toggleDeployerWhitelist(state);
+    }
+
+    function _toggleDeployerWhitelist(bool state) internal {
+        _deployerWhitelistEnabled = state;
+        emit DeployerWhitelistEnabled(_deployerWhitelistEnabled);
+    }
+
+    function isDeployerWhitelistEnabled() public view returns (bool) {
+        return _deployerWhitelistEnabled;
+    }
+
     function isDeployer(address account) public override view returns (bool) {
+        if (!_deployerWhitelistEnabled) {
+            return true;
+        }
         return _contractDeployers[account].exists;
     }
 
@@ -52,7 +75,7 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
         return _contractDeployers[account].banned;
     }
 
-    function addDeployer(address account) public onlyFromGovernance virtual override {
+    function addDeployer(address account) public onlyWhenWhitelistEnabled onlyFromGovernance virtual override {
         _addDeployer(account);
     }
 
@@ -66,7 +89,7 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
         emit DeployerAdded(account);
     }
 
-    function removeDeployer(address account) public onlyFromGovernance virtual override {
+    function removeDeployer(address account) public onlyWhenWhitelistEnabled onlyFromGovernance virtual override {
         _removeDeployer(account);
     }
 
@@ -81,8 +104,10 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
     }
 
     function _banDeployer(address account) internal {
-        require(_contractDeployers[account].exists, "Deployer: deployer doesn't exist");
         require(!_contractDeployers[account].banned, "Deployer: deployer already banned");
+        if (!_contractDeployers[account].exists) {
+            _addDeployer(account);
+        }
         _contractDeployers[account].banned = true;
         emit DeployerBanned(account);
     }
@@ -117,6 +142,10 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
         _smartContracts[impl] = dc;
         // emit event
         emit ContractDeployed(deployer, impl);
+        // make new contract deployer as well
+        if (!isDeployer(impl)) {
+            _addDeployer(impl);
+        }
     }
 
     function registerDeployedContract(address deployer, address impl) public onlyFromCoinbase virtual override {

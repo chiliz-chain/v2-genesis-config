@@ -22,7 +22,7 @@
     "rlp": "^2.2.6",
     "solidity-coverage": "^0.7.18",
     "truffle": "^5.4.32",
-    "web3": "^1.3.4",
+    "web3": "^4.0.3",
     "web3-eth-abi": "^1.7.1",
     "web3-utils": "^1.7.0"
   },

@@ -31,4 +31,13 @@ contract FakeStaking is Staking {
     function slash(address validatorAddress) external override {
         _slashValidator(validatorAddress);
     }
+
+    function fixValidatorEpoch(address validatorAddress, uint112 totalDelegated, uint64 epoch) external override {
+        _fixValidatorEpoch(validatorAddress, totalDelegated, epoch);
+    }
+
+    function togglePause() external override {
+        _paused = !_paused;
+        emit Paused(_paused);
+    }
 }
