@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common/systemcontract"
 	"io/fs"
 	"io/ioutil"
 	"math/big"
@@ -14,8 +13,9 @@ import (
 	"unicode"
 	"unsafe"
 
+	"github.com/ethereum/go-ethereum/common/systemcontract"
+
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/eth/tracers"
 
 	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
 
@@ -86,19 +86,25 @@ func simulateSystemContract(genesis *core.Genesis, systemContract common.Address
 		return err
 	}
 	statedb.SetBalance(systemContract, balance)
-	block := genesis.ToBlock(nil)
+	block := genesis.ToBlock()
 	blockContext := core.NewEVMBlockContext(block.Header(), &dummyChainContext{}, &common.Address{})
-	txContext := core.NewEVMTxContext(
-		types.NewMessage(common.Address{}, &systemContract, 0, big.NewInt(0), 10_000_000, big.NewInt(0), []byte{}, nil, false),
-	)
-	tracer, err := tracers.New("callTracer", nil)
+
+	msg := &core.Message{
+		From:              common.Address{},
+		To:                &systemContract,
+		Nonce:             0,
+		Value:             big.NewInt(0),
+		GasLimit:          10_000_000,
+		GasPrice:          big.NewInt(0),
+		Data:              []byte{},
+		AccessList:        nil,
+		SkipAccountChecks: false,
+	}
+	txContext := core.NewEVMTxContext(msg)
 	if err != nil {
 		return err
 	}
-	evm := vm.NewEVM(blockContext, txContext, statedb, genesis.Config, vm.Config{
-		Debug:  true,
-		Tracer: tracer,
-	})
+	evm := vm.NewEVM(blockContext, txContext, statedb, genesis.Config, vm.Config{})
 	deployedBytecode, _, err := evm.CreateWithAddress(vm.AccountRef(common.Address{}), bytecode, 10_000_000, big.NewInt(0), systemContract)
 	if err != nil {
 		for _, c := range deployedBytecode[64:] {
@@ -373,6 +379,29 @@ func defaultGenesisConfig(config genesisConfig) *core.Genesis {
 		DeployOriginBlock:      decimalToBigInt(config.Forks.DeployOriginBlock),
 		DeploymentHookFixBlock: decimalToBigInt(config.Forks.DeploymentHookFixBlock),
 		DeployerFactoryBlock:   decimalToBigInt(config.Forks.DeployerFactoryBlock),
+
+		// NEW FORKS
+		// Ethereum forks
+		BerlinBlock:       big.NewInt(0),
+		LondonBlock:       big.NewInt(0),
+		ArrowGlacierBlock: big.NewInt(0),
+		GrayGlacierBlock:  big.NewInt(0),
+
+		// BSC 2022 forks
+		EulerBlock: nil,
+		NanoBlock:  big.NewInt(0),
+		MoranBlock: big.NewInt(0),
+		GibbsBlock: big.NewInt(0),
+		// BSC 2023 forks
+		PlanckBlock:   big.NewInt(0),
+		LubanBlock:    nil,
+		PlatoBlock:    nil,
+		HertzBlock:    big.NewInt(0),
+		HertzfixBlock: big.NewInt(0),
+		// BSC 2024 forks
+		KeplerTime:   new(uint64),
+		ShanghaiTime: new(uint64),
+
 		// Parlia config
 		Parlia: &params.ParliaConfig{
 			Period: 3,
@@ -410,7 +439,7 @@ var localNetConfig = genesisConfig{
 	},
 	ConsensusParams: consensusParams{
 		ActiveValidatorsLength:   25,                                                                    // suggested values are (3k+1, where k is honest validators, even better): 7, 13, 19, 25, 31...
-		EpochBlockInterval:       40,                                                                    // better to use 1 day epoch (86400/3=28800, where 3s is block time)
+		EpochBlockInterval:       20,                                                                    // better to use 1 day epoch (86400/3=28800, where 3s is block time)
 		MisdemeanorThreshold:     5,                                                                     // after missing this amount of blocks per day validator losses all daily rewards (penalty)
 		FelonyThreshold:          10,                                                                    // after missing this amount of blocks per day validator goes in jail for N epochs
 		ValidatorJailEpochLength: 3,                                                                     // how many epochs validator should stay in jail (7 epochs = ~7 days)
@@ -427,7 +456,13 @@ var localNetConfig = genesisConfig{
 	Faucet: map[common.Address]string{
 		common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"): "0x21e19e0c9bab2400000",
 		common.HexToAddress("0x57BA24bE2cF17400f37dB3566e839bfA6A2d018a"): "0x21e19e0c9bab2400000",
-		common.HexToAddress("0xEbCf9D06cf9333706E61213F17A795B2F7c55F1b"): "0x21e19e0c9bab2400000",
+		common.HexToAddress("0xAc55Ad39532e7E609DDa1FFfA7F0B6D796dcB049"): "0x21e19e0c9bab2400000",
+	},
+	Forks: ChilizForks{
+		RuntimeUpgradeBlock:    (*math.HexOrDecimal256)(big.NewInt(0)),
+		DeployOriginBlock:      (*math.HexOrDecimal256)(big.NewInt(0)),
+		DeploymentHookFixBlock: (*math.HexOrDecimal256)(big.NewInt(0)),
+		DeployerFactoryBlock:   (*math.HexOrDecimal256)(big.NewInt(0)),
 	},
 }
 
