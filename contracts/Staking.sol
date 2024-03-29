@@ -282,8 +282,8 @@ contract Staking is IStaking, InjectorContextHolder {
     function _delegateTo(address fromDelegator, address toValidator, uint256 amount) internal {
         require(!_paused);
         // check is minimum delegate amount
-        require(amount >= _chainConfigContract.getMinStakingAmount() && amount != 0, "too low"); // amount too low
-        require(amount % BALANCE_COMPACT_PRECISION == 0, "have remainder"); // amount have a remainder
+        require(amount >= _chainConfigContract.getMinStakingAmount() && amount != 0, "tl"); // amount too low
+        require(amount % BALANCE_COMPACT_PRECISION == 0, "hr"); // amount have a remainder
         // make sure amount is greater than min staking amount
         // make sure validator exists at least
         Validator memory validator = _validatorsMap[toValidator];
@@ -514,8 +514,8 @@ contract Staking is IStaking, InjectorContextHolder {
     function registerValidator(address validatorAddress, uint16 commissionRate) payable external override {
         uint256 initialStake = msg.value;
         // // initial stake amount should be greater than minimum validator staking amount
-        require(initialStake >= _chainConfigContract.getMinValidatorStakeAmount(), "too low"); // initial stake too low
-        require(initialStake % BALANCE_COMPACT_PRECISION == 0, "have remainder"); // amount have a remainder
+        require(initialStake >= _chainConfigContract.getMinValidatorStakeAmount(), "tl"); // initial stake too low
+        require(initialStake % BALANCE_COMPACT_PRECISION == 0, "hr"); // amount have a remainder
         // add new validator as pending
         _addValidator(validatorAddress, msg.sender, ValidatorStatus.Pending, commissionRate, initialStake, _nextEpoch());
     }
@@ -682,7 +682,7 @@ contract Staking is IStaking, InjectorContextHolder {
         return orderedValidators;
     }
 
-    function deposit(address validatorAddress) external payable onlyFromCoinbase onlyZeroGasPrice virtual override {
+    function deposit(address validatorAddress) external payable onlyFromCoinbaseOrTokenomics onlyZeroGasPrice virtual override {
         _depositFee(validatorAddress);
     }
 

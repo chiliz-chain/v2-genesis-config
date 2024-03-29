@@ -11,10 +11,12 @@ const Governance = artifacts.require("FakeGovernance");
 const StakingPool = artifacts.require("StakingPool");
 const RuntimeUpgrade = artifacts.require("RuntimeUpgrade");
 const DeployerProxy = artifacts.require("DeployerProxy");
+const Tokenomics = artifacts.require("Tokenomics");
 const FakeStaking = artifacts.require("FakeStaking");
 const FakeDeployerProxy = artifacts.require("FakeDeployerProxy");
 const FakeRuntimeUpgrade = artifacts.require("FakeRuntimeUpgrade");
 const FakeSystemReward = artifacts.require("FakeSystemReward");
+const FakeTokenomics = artifacts.require("FakeTokenomics");
 
 const DEFAULT_MOCK_PARAMS = {
   systemTreasury: '0x0000000000000000000000000000000000000000',
@@ -41,6 +43,7 @@ const DEFAULT_CONTRACT_TYPES = {
   StakingPool: StakingPool,
   RuntimeUpgrade: RuntimeUpgrade,
   DeployerProxy: DeployerProxy,
+  Tokenomics: Tokenomics,
 };
 
 const createConstructorArgs = (types, args) => {
@@ -59,6 +62,7 @@ const newContractUsingTypes = async (owner, params, types = {}) => {
     StakingPool,
     RuntimeUpgrade,
     DeployerProxy,
+    Tokenomics,
   } = Object.assign({}, DEFAULT_CONTRACT_TYPES, types)
   let {
     genesisDeployers,
@@ -93,8 +97,9 @@ const newContractUsingTypes = async (owner, params, types = {}) => {
   const stakingPool = await StakingPool.new(createConstructorArgs([], []));
   const runtimeUpgrade = await RuntimeUpgrade.new(createConstructorArgs(['address'], [runtimeUpgradeEvmHook]));
   const deployerProxy = await DeployerProxy.new(createConstructorArgs(['address[]'], [genesisDeployers]));
+  const tokenomics = await Tokenomics.new(createConstructorArgs([], []));
   // init them all
-  for (const contract of [slashingIndicator, staking, systemReward, stakingPool, governance, chainConfig, runtimeUpgrade, deployerProxy]) {
+  for (const contract of [slashingIndicator, staking, systemReward, stakingPool, governance, chainConfig, runtimeUpgrade, deployerProxy, tokenomics]) {
     await contract.initManually(
       staking.address,
       slashingIndicator.address,
@@ -104,6 +109,7 @@ const newContractUsingTypes = async (owner, params, types = {}) => {
       chainConfig.address,
       runtimeUpgrade.address,
       deployerProxy.address,
+      tokenomics.address,
     );
   }
   return {
@@ -118,6 +124,7 @@ const newContractUsingTypes = async (owner, params, types = {}) => {
     runtimeUpgrade,
     deployer: deployerProxy,
     deployerProxy,
+    tokenomics,
   }
 }
 
@@ -127,6 +134,7 @@ const newMockContract = async (owner, params = {}) => {
     RuntimeUpgrade: FakeRuntimeUpgrade,
     DeployerProxy: FakeDeployerProxy,
     SystemReward: FakeSystemReward,
+    Tokenomics: FakeTokenomics,
   });
 }
 
