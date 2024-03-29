@@ -282,8 +282,8 @@ contract Staking is IStaking, InjectorContextHolder {
     function _delegateTo(address fromDelegator, address toValidator, uint256 amount) internal {
         require(!_paused);
         // check is minimum delegate amount
-        require(amount >= _chainConfigContract.getMinStakingAmount() && amount != 0, "too low"); // amount too low
-        require(amount % BALANCE_COMPACT_PRECISION == 0, "have remainder"); // amount have a remainder
+        require(amount >= _chainConfigContract.getMinStakingAmount() && amount != 0, "tl"); // amount too low
+        require(amount % BALANCE_COMPACT_PRECISION == 0, "hr"); // amount have a remainder
         // make sure amount is greater than min staking amount
         // make sure validator exists at least
         Validator memory validator = _validatorsMap[toValidator];
@@ -320,8 +320,8 @@ contract Staking is IStaking, InjectorContextHolder {
     function _undelegateFrom(address toDelegator, address fromValidator, uint256 amount) internal {
         require(!_paused);
         // check minimum delegate amount
-        require(amount >= _chainConfigContract.getMinStakingAmount() && amount != 0, "too low"); // amount to low
-        require(amount % BALANCE_COMPACT_PRECISION == 0, "have remainder"); // have a remainder
+        require(amount >= _chainConfigContract.getMinStakingAmount() && amount != 0, "tl"); // amount to low
+        require(amount % BALANCE_COMPACT_PRECISION == 0, "hr"); // have a remainder
         // make sure validator exists at least
         Validator memory validator = _validatorsMap[fromValidator];
         uint64 beforeEpoch = _nextEpoch();
@@ -337,7 +337,7 @@ contract Staking is IStaking, InjectorContextHolder {
         // staked amount because it can't affect current validator set, but otherwise we must create
         // new record in delegation queue with the last epoch (delegations are ordered by epoch)
         ValidatorDelegation storage delegation = _validatorDelegations[fromValidator][toDelegator];
-        require(delegation.delegateQueue.length > 0, "queue empty");
+        require(delegation.delegateQueue.length > 0, "qe");
         DelegationOpDelegate storage recentDelegateOp = delegation.delegateQueue[delegation.delegateQueue.length - 1];
         require(recentDelegateOp.amount >= uint64(amount / BALANCE_COMPACT_PRECISION), "ib"); // insufficient balance
         uint112 nextDelegatedAmount = recentDelegateOp.amount - _packCompact(amount);
@@ -514,8 +514,8 @@ contract Staking is IStaking, InjectorContextHolder {
     function registerValidator(address validatorAddress, uint16 commissionRate) payable external override {
         uint256 initialStake = msg.value;
         // // initial stake amount should be greater than minimum validator staking amount
-        require(initialStake >= _chainConfigContract.getMinValidatorStakeAmount(), "too low"); // initial stake too low
-        require(initialStake % BALANCE_COMPACT_PRECISION == 0, "have remainder"); // amount have a remainder
+        require(initialStake >= _chainConfigContract.getMinValidatorStakeAmount(), "tl"); // initial stake too low
+        require(initialStake % BALANCE_COMPACT_PRECISION == 0, "hr"); // amount have a remainder
         // add new validator as pending
         _addValidator(validatorAddress, msg.sender, ValidatorStatus.Pending, commissionRate, initialStake, _nextEpoch());
     }
@@ -682,7 +682,7 @@ contract Staking is IStaking, InjectorContextHolder {
         return orderedValidators;
     }
 
-    function deposit(address validatorAddress) external payable onlyFromCoinbase onlyZeroGasPrice virtual override {
+    function deposit(address validatorAddress) external payable onlyFromCoinbaseOrTokenomics onlyZeroGasPrice virtual override {
         _depositFee(validatorAddress);
     }
 

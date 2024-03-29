@@ -12,6 +12,7 @@ import "./interfaces/IRuntimeUpgrade.sol";
 import "./interfaces/IStakingPool.sol";
 import "./interfaces/IInjector.sol";
 import "./interfaces/IDeployerProxy.sol";
+import "./interfaces/ITokenomics.sol";
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/utils/StorageSlot.sol";
@@ -31,9 +32,10 @@ abstract contract InjectorContextHolder is Initializable, IInjector {
     IChainConfig internal _chainConfigContract;
     IRuntimeUpgrade internal _runtimeUpgradeContract;
     IDeployerProxy internal _deployerProxyContract;
+    ITokenomics internal _tokenomicsContract;
 
-    // already init (1) + ctor(1) + injector (8) = 10
-    uint256[100 - 8] private __reserved;
+    // already init (1) + ctor(1) + injector (9) = 10
+    uint256[100 - 9] private __reserved;
 
     constructor(bytes memory constructorParams) {
         // save constructor params to use them in the init function
@@ -51,6 +53,7 @@ abstract contract InjectorContextHolder is Initializable, IInjector {
         _chainConfigContract = IChainConfig(0x0000000000000000000000000000000000007003);
         _runtimeUpgradeContract = IRuntimeUpgrade(0x0000000000000000000000000000000000007004);
         _deployerProxyContract = IDeployerProxy(0x0000000000000000000000000000000000007005);
+        _tokenomicsContract = ITokenomics(0x0000000000000000000000000000000000007006);
         // invoke constructor
         _invokeContractConstructor();
     }
@@ -63,7 +66,8 @@ abstract contract InjectorContextHolder is Initializable, IInjector {
         IGovernance governanceContract,
         IChainConfig chainConfigContract,
         IRuntimeUpgrade runtimeUpgradeContract,
-        IDeployerProxy deployerProxyContract
+        IDeployerProxy deployerProxyContract,
+        ITokenomics tokenomicsContract
     ) public initializer {
         // BSC-compatible
         _stakingContract = stakingContract;
@@ -75,6 +79,7 @@ abstract contract InjectorContextHolder is Initializable, IInjector {
         _chainConfigContract = chainConfigContract;
         _runtimeUpgradeContract = runtimeUpgradeContract;
         _deployerProxyContract = deployerProxyContract;
+        _tokenomicsContract = tokenomicsContract;
         // invoke constructor
         _invokeContractConstructor();
     }
@@ -108,6 +113,14 @@ abstract contract InjectorContextHolder is Initializable, IInjector {
         _;
     }
 
+    modifier onlyFromCoinbaseOrTokenomics() {
+        require(
+            msg.sender == block.coinbase || ITokenomics(msg.sender) == _tokenomicsContract,
+            "InjectorContextHolder: only coinbase or tokenomics"
+        );
+        _;
+    }
+
     modifier onlyFromSlashingIndicator() {
         require(msg.sender == address(_slashingIndicatorContract), "InjectorContextHolder: only slashing indicator");
         _;
@@ -128,27 +141,7 @@ abstract contract InjectorContextHolder is Initializable, IInjector {
         _;
     }
 
-    function getStaking() public view returns (IStaking) {
-        return _stakingContract;
-    }
-
-    function getSlashingIndicator() public view returns (ISlashingIndicator) {
-        return _slashingIndicatorContract;
-    }
-
-    function getSystemReward() public view returns (ISystemReward) {
-        return _systemRewardContract;
-    }
-
-    function getStakingPool() public view returns (IStakingPool) {
-        return _stakingPoolContract;
-    }
-
-    function getGovernance() public view returns (IGovernance) {
-        return _governanceContract;
-    }
-
-    function getChainConfig() public view returns (IChainConfig) {
-        return _chainConfigContract;
+    function setTokenomics(address addr) public onlyFromGovernance {
+        _tokenomicsContract = ITokenomics(addr);
     }
 }

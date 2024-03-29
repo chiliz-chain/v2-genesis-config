@@ -15,15 +15,4 @@ interface IInjector {
 
     function isInitialized() external view returns (bool);
 
-    function getStaking() external view returns (IStaking);
-
-    function getSlashingIndicator() external view returns (ISlashingIndicator);
-
-    function getSystemReward() external view returns (ISystemReward);
-
-    function getStakingPool() external view returns (IStakingPool);
-
-    function getGovernance() external view returns (IGovernance);
-
-    function getChainConfig() external view returns (IChainConfig);
 }

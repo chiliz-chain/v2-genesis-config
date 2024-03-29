@@ -13,6 +13,8 @@ import (
 	"unicode"
 	"unsafe"
 
+	"time"
+
 	"github.com/ethereum/go-ethereum/common/systemcontract"
 
 	"github.com/ethereum/go-ethereum/common/math"
@@ -149,6 +151,7 @@ var governanceAddress = common.HexToAddress("0x000000000000000000000000000000000
 var chainConfigAddress = common.HexToAddress("0x0000000000000000000000000000000000007003")
 var runtimeUpgradeAddress = common.HexToAddress("0x0000000000000000000000000000000000007004")
 var deployerProxyAddress = common.HexToAddress("0x0000000000000000000000000000000000007005")
+var tokenomicsAddress = common.HexToAddress("0x0000000000000000000000000000000000007006")
 var intermediarySystemAddress = common.HexToAddress("0xfffffffffffffffffffffffffffffffffffffffe")
 
 //go:embed build/contracts/Staking.json
@@ -175,6 +178,9 @@ var runtimeUpgradeRawArtifact []byte
 //go:embed build/contracts/DeployerProxy.json
 var deployerProxyRawArtifact []byte
 
+//go:embed build/contracts/Tokenomics.json
+var tokenomicsRawArtifact []byte
+
 func newArguments(typeNames ...string) abi.Arguments {
 	var args abi.Arguments
 	for i, tn := range typeNames {
@@ -198,24 +204,31 @@ type consensusParams struct {
 	MinStakingAmount         *math.HexOrDecimal256 `json:"minStakingAmount"`
 }
 
+type tokenomicsParams struct {
+	StakingShare       uint16 `json:"stakingShare"`
+	SystemRewardsShare uint16 `json:"systemRewardsShare"`
+}
+
 type ChilizForks struct {
 	RuntimeUpgradeBlock    *math.HexOrDecimal256 `json:"runtimeUpgradeBlock"`
 	DeployOriginBlock      *math.HexOrDecimal256 `json:"deployOriginBlock"`
 	DeploymentHookFixBlock *math.HexOrDecimal256 `json:"deploymentHookFixBlock"`
 	DeployerFactoryBlock   *math.HexOrDecimal256 `json:"deployerFactoryBlock"`
+	TokenomicsBlock        *math.HexOrDecimal256 `json:"tokenomicsBlock,omitempty"`
 }
 
 type genesisConfig struct {
-	ChainId         int64                     `json:"chainId"`
-	Deployers       []common.Address          `json:"deployers"`
-	Validators      []common.Address          `json:"validators"`
-	SystemTreasury  map[common.Address]uint16 `json:"systemTreasury"`
-	ConsensusParams consensusParams           `json:"consensusParams"`
-	VotingPeriod    int64                     `json:"votingPeriod"`
-	Faucet          map[common.Address]string `json:"faucet"`
-	CommissionRate  int64                     `json:"commissionRate"`
-	InitialStakes   map[common.Address]string `json:"initialStakes"`
-	Forks           ChilizForks               `json:"forks"`
+	ChainId          int64                     `json:"chainId"`
+	Deployers        []common.Address          `json:"deployers"`
+	Validators       []common.Address          `json:"validators"`
+	SystemTreasury   map[common.Address]uint16 `json:"systemTreasury"`
+	ConsensusParams  consensusParams           `json:"consensusParams"`
+	TokenomicsParams tokenomicsParams          `json:"tokenomicsParams"`
+	VotingPeriod     int64                     `json:"votingPeriod"`
+	Faucet           map[common.Address]string `json:"faucet"`
+	CommissionRate   int64                     `json:"commissionRate"`
+	InitialStakes    map[common.Address]string `json:"initialStakes"`
+	Forks            ChilizForks               `json:"forks"`
 }
 
 func invokeConstructorOrPanic(genesis *core.Genesis, contract common.Address, rawArtifact []byte, typeNames []string, params []interface{}, silent bool, balance *big.Int) {
@@ -299,6 +312,9 @@ func createGenesisConfig(config genesisConfig, targetFile string, updateOnlyConf
 		invokeConstructorOrPanic(genesis, deployerProxyAddress, deployerProxyRawArtifact, []string{"address[]"}, []interface{}{
 			config.Deployers,
 		}, suppressLogging, nil)
+		invokeConstructorOrPanic(genesis, tokenomicsAddress, tokenomicsRawArtifact, []string{"uint16", "uint16"}, []interface{}{
+			config.TokenomicsParams.StakingShare, config.TokenomicsParams.SystemRewardsShare,
+		}, suppressLogging, nil)
 		// create system contract
 		genesis.Alloc[intermediarySystemAddress] = core.GenesisAccount{
 			Balance: big.NewInt(0),
@@ -379,6 +395,7 @@ func defaultGenesisConfig(config genesisConfig) *core.Genesis {
 		DeployOriginBlock:      decimalToBigInt(config.Forks.DeployOriginBlock),
 		DeploymentHookFixBlock: decimalToBigInt(config.Forks.DeploymentHookFixBlock),
 		DeployerFactoryBlock:   decimalToBigInt(config.Forks.DeployerFactoryBlock),
+		TokenomicsBlock:        decimalToBigInt(config.Forks.TokenomicsBlock),
 
 		// NEW FORKS
 		// Ethereum forks
@@ -411,7 +428,7 @@ func defaultGenesisConfig(config genesisConfig) *core.Genesis {
 	return &core.Genesis{
 		Config:     chainConfig,
 		Nonce:      0,
-		Timestamp:  0x5e9da7ce,
+		Timestamp:  uint64(time.Now().Unix()),
 		ExtraData:  nil,
 		GasLimit:   0x2625a00,
 		Difficulty: big.NewInt(0x01),
@@ -450,6 +467,10 @@ var localNetConfig = genesisConfig{
 	InitialStakes: map[common.Address]string{
 		common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"): "0x3635c9adc5dea00000", // 1000 eth
 	},
+	TokenomicsParams: tokenomicsParams{
+		StakingShare:       6500,
+		SystemRewardsShare: 3500,
+	},
 	// owner of the governance
 	VotingPeriod: 20, // 1 minute
 	// faucet
@@ -463,6 +484,7 @@ var localNetConfig = genesisConfig{
 		DeployOriginBlock:      (*math.HexOrDecimal256)(big.NewInt(0)),
 		DeploymentHookFixBlock: (*math.HexOrDecimal256)(big.NewInt(0)),
 		DeployerFactoryBlock:   (*math.HexOrDecimal256)(big.NewInt(0)),
+		TokenomicsBlock:        (*math.HexOrDecimal256)(big.NewInt(0)),
 	},
 }
 
