@@ -214,7 +214,7 @@ type ChilizForks struct {
 	DeployOriginBlock      *math.HexOrDecimal256 `json:"deployOriginBlock"`
 	DeploymentHookFixBlock *math.HexOrDecimal256 `json:"deploymentHookFixBlock"`
 	DeployerFactoryBlock   *math.HexOrDecimal256 `json:"deployerFactoryBlock"`
-	TokenomicsBlock        *math.HexOrDecimal256 `json:"tokenomicsBlock,omitempty"`
+	TokenomicsTime         uint64                `json:"tokenomicsTime,omitempty"`
 }
 
 type genesisConfig struct {
@@ -395,7 +395,7 @@ func defaultGenesisConfig(config genesisConfig) *core.Genesis {
 		DeployOriginBlock:      decimalToBigInt(config.Forks.DeployOriginBlock),
 		DeploymentHookFixBlock: decimalToBigInt(config.Forks.DeploymentHookFixBlock),
 		DeployerFactoryBlock:   decimalToBigInt(config.Forks.DeployerFactoryBlock),
-		TokenomicsBlock:        decimalToBigInt(config.Forks.TokenomicsBlock),
+		TokenomicsTime:         &config.Forks.TokenomicsTime,
 
 		// NEW FORKS
 		// Ethereum forks
@@ -484,7 +484,7 @@ var localNetConfig = genesisConfig{
 		DeployOriginBlock:      (*math.HexOrDecimal256)(big.NewInt(0)),
 		DeploymentHookFixBlock: (*math.HexOrDecimal256)(big.NewInt(0)),
 		DeployerFactoryBlock:   (*math.HexOrDecimal256)(big.NewInt(0)),
-		TokenomicsBlock:        (*math.HexOrDecimal256)(big.NewInt(0)),
+		TokenomicsTime:         uint64(time.Now().Unix()),
 	},
 }
 
