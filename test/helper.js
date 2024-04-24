@@ -97,7 +97,7 @@ const newContractUsingTypes = async (owner, params, types = {}) => {
   const stakingPool = await StakingPool.new(createConstructorArgs([], []));
   const runtimeUpgrade = await RuntimeUpgrade.new(createConstructorArgs(['address'], [runtimeUpgradeEvmHook]));
   const deployerProxy = await DeployerProxy.new(createConstructorArgs(['address[]'], [genesisDeployers]));
-  const tokenomics = await Tokenomics.new(createConstructorArgs([], []));
+  const tokenomics = await Tokenomics.new(createConstructorArgs(['uint16', 'uint16'], [6500, 3500]));
   // init them all
   for (const contract of [slashingIndicator, staking, systemReward, stakingPool, governance, chainConfig, runtimeUpgrade, deployerProxy, tokenomics]) {
     await contract.initManually(

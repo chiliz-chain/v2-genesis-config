@@ -17,7 +17,7 @@ contract Tokenomics is ITokenomics, InjectorContextHolder {
         uint16 shareSystem;
     }
 
-    event Deposit(uint256 introducedSupply, uint256 newTotalSupply, uint256 inflationPct, address validator);
+    event Deposit(uint256 introducedSupply, uint256 newTotalSupply, uint256 inflationPct, address validator, uint256 stakingAmount, uint256 systemAmount);
     event SharesUpdated(uint16 shareStaking, uint16 shareSystem);
 
     State internal _state;
@@ -78,7 +78,7 @@ contract Tokenomics is ITokenomics, InjectorContextHolder {
         _state.totalIntroducedSupply += msg.value;
         _state.totalSupply = newTotalSupply;
 
-        emit Deposit(msg.value, newTotalSupply, inflationPct, validatorAddress);
+        emit Deposit(msg.value, newTotalSupply, inflationPct, validatorAddress, stakingAmount, systemAmount);
     }
 
     function _updateShares(uint16 shareStaking, uint16 shareSystem) internal {

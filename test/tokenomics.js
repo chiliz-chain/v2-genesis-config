@@ -86,6 +86,8 @@ contract.only("Tokenomics", async (accounts) => {
     assert.equal(depositRes.receipt.logs[0].args.newTotalSupply, newTotalSupply.toFixed());
     assert.equal(depositRes.receipt.logs[0].args.inflationPct, inflationPct.toString());
     assert.equal(depositRes.receipt.logs[0].args.validator, validator.toString());
+    assert.isNotNull(depositRes.receipt.logs[0].args.stakingAmount);
+    assert.isNotNull(depositRes.receipt.logs[0].args.systemAmount);
 
     // check state
     const stateAfterDeposit = await Tokenomics.getState();
