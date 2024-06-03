@@ -215,6 +215,7 @@ type ChilizForks struct {
 	DeploymentHookFixBlock *math.HexOrDecimal256 `json:"deploymentHookFixBlock"`
 	DeployerFactoryBlock   *math.HexOrDecimal256 `json:"deployerFactoryBlock"`
 	Dragon8Time            uint64                `json:"dragon8Time,omitempty"`
+	Dragon8FixBlock        *math.HexOrDecimal256 `json:"dragon8FixBlock,omitempty"`
 }
 
 type genesisConfig struct {
@@ -396,6 +397,7 @@ func defaultGenesisConfig(config genesisConfig) *core.Genesis {
 		DeploymentHookFixBlock: decimalToBigInt(config.Forks.DeploymentHookFixBlock),
 		DeployerFactoryBlock:   decimalToBigInt(config.Forks.DeployerFactoryBlock),
 		Dragon8Time:            &config.Forks.Dragon8Time,
+		Dragon8FixBlock:        decimalToBigInt(config.Forks.Dragon8FixBlock),
 
 		// NEW FORKS
 		// Ethereum forks
@@ -485,6 +487,7 @@ var localNetConfig = genesisConfig{
 		DeploymentHookFixBlock: (*math.HexOrDecimal256)(big.NewInt(0)),
 		DeployerFactoryBlock:   (*math.HexOrDecimal256)(big.NewInt(0)),
 		Dragon8Time:            uint64(time.Now().Unix()),
+		Dragon8FixBlock:        (*math.HexOrDecimal256)(big.NewInt(1)),
 	},
 }
 
