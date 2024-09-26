@@ -16,13 +16,7 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
     event Unstake(address indexed validator, address indexed staker, uint256 amount);
     event Claim(address indexed validator, address indexed staker, uint256 amount);
 
-    struct ValidatorPool {
-        address validatorAddress;
-        uint256 sharesSupply;
-        uint256 totalStakedAmount;
-        uint256 dustRewards;
-        uint256 pendingUnstake;
-    }
+
 
     struct PendingUnstake {
         uint256 amount;
@@ -58,6 +52,12 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
         validatorPool.totalStakedAmount += amountToStake;
         validatorPool.dustRewards += dustRewards;
         return validatorPool;
+    }
+
+    /// @notice Returns validator pool data without rewards being calculated.
+    /// @param validator Validator address.
+    function getValidatorPoolWithoutRewards(address validator) external view returns (ValidatorPool memory) {
+        return _getValidatorPool(validator);
     }
 
     function getRatio(address validator) external view returns (uint256) {
