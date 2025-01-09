@@ -9,4 +9,3 @@ coverage
 coverage.json
 out/
 snapshots/
-lib/
