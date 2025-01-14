@@ -29,11 +29,6 @@ contract StakingTest is Test {
 
     uint16 public constant EPOCH_LEN = 100;
 
-    struct Entry {
-        uint112 amount;
-        uint64 epoch;
-    }
-
     function setUp() public {
         bytes memory ctorChainConfig = abi.encodeWithSignature(
             "ctor(uint32,uint32,uint32,uint32,uint32,uint32,uint256,uint256)",
@@ -120,7 +115,34 @@ contract StakingTest is Test {
     }
 
     function test_stake() public {
+        // user stakes on validator 2
+        uint256 i;
+        address user;
+        uint16 loop = 1;
+        for (i = 1; i <= loop; i++) {
+            user = vm.addr(i);
+            vm.deal(user, 3000 ether);
+            vm.prank(user);
+            stakingPool.stake{value: 500 ether}(vm.addr(6));
+        }
+        for (i = 1; i <= loop; i++) {
+            user = vm.addr(i);
+            vm.prank(user);
+            stakingPool.unstake(vm.addr(6), 1 ether);
+        }
 
+        vm.roll(block.number + 10 * 28800);
+
+        vm.prank(vm.addr(1));
+        vm.startSnapshotGas("A");
+
+        stakingPool.claim(vm.addr(6));
+
+        uint256 gasUsed = vm.stopSnapshotGas();
+        console.log("Gas used for claim: ", gasUsed);
+    }
+
+    function test_sherlock92() public {
         // users stake on validator 2
         address validator = vm.addr(6);
 
