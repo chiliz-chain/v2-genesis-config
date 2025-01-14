@@ -20,7 +20,7 @@ import {StakingPool} from "../contracts/StakingPool.sol";
 import {Staking} from "../contracts/Staking.sol";
 import {ChainConfig} from "../contracts/ChainConfig.sol";
 
-contract Base is Test {
+contract StakingTest is Test {
     StakingPool public stakingPool;
     Staking public staking;
     ChainConfig public chainConfig;
@@ -28,6 +28,11 @@ contract Base is Test {
     address[] public validators;
 
     uint16 public constant EPOCH_LEN = 100;
+
+    struct Entry {
+        uint112 amount;
+        uint64 epoch;
+    }
 
     function setUp() public {
         bytes memory ctorChainConfig = abi.encodeWithSignature(
@@ -115,30 +120,67 @@ contract Base is Test {
     }
 
     function test_stake() public {
-        // user stakes on validator 2
-        uint256 i;
+
+        // users stake on validator 2
+        address validator = vm.addr(6);
+
+        uint256 mapSlot = 105;
+        bytes32 slotVal = keccak256(abi.encode(validator, mapSlot));
+        bytes32 slotDeleg = keccak256(abi.encode(address(stakingPool), slotVal));
+        uint256 len;
+        uint256 gap;
+
         address user;
-        uint16 loop = 1;
-        for (i = 1; i <= loop; i++) {
+
+        // 10 users are staking
+        uint256 i;
+        for (i = 1; i <= 10; i++) {
             user = vm.addr(i);
             vm.deal(user, 3000 ether);
             vm.prank(user);
-            stakingPool.stake{value: 500 ether}(vm.addr(6));
+            stakingPool.stake{value: 500 ether}(validator);
         }
-        for (i = 1; i <= loop; i++) {
+
+        // 2 users are unstaking
+        for (i = 1; i <= 2; i++) {
             user = vm.addr(i);
             vm.prank(user);
-            stakingPool.unstake(vm.addr(6), 1 ether);
+            stakingPool.unstake(validator, 2 ether);
         }
 
-        vm.roll(block.number + 10 * 28800);
+        len = uint256(vm.load(address(staking), bytes32(uint256(slotDeleg) + 2)));
+        gap = uint256(vm.load(address(staking), bytes32(uint256(slotDeleg) + 3)));
 
-        vm.prank(vm.addr(1));
-        vm.startSnapshotGas("A");
+        assertEq(len, 1);
+        assertEq(gap, 0);
 
-        stakingPool.claim(vm.addr(6));
+        vm.roll(block.number + 1 * EPOCH_LEN);
 
-        uint256 gasUsed = vm.stopSnapshotGas();
-        console.log("Gas used for claim: ", gasUsed);
+        // 8 other users are unstaking
+        for (i = 3; i <= 10; i++) {
+            user = vm.addr(i);
+            vm.prank(user);
+            stakingPool.unstake(validator, 2 ether);
+        }
+
+        len = uint256(vm.load(address(staking), bytes32(uint256(slotDeleg) + 2)));
+        gap = uint256(vm.load(address(staking), bytes32(uint256(slotDeleg) + 3)));
+
+        assertEq(len, 2);
+        assertEq(gap, 0);
+
+        vm.roll(block.number + 1 * EPOCH_LEN);
+
+        // first user is claiming
+        user = vm.addr(1);
+        vm.prank(user);
+
+        stakingPool.claim(validator);
+
+        len = uint256(vm.load(address(staking), bytes32(uint256(slotDeleg) + 2)));
+        gap = uint256(vm.load(address(staking), bytes32(uint256(slotDeleg) + 3)));
+
+        assertEq(len, 2);
+        assertEq(gap, 1);
     }
 }
