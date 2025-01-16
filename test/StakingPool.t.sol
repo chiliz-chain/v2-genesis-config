@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test, stdStorage, StdStorage, console} from "forge-std/Test.sol";
 
 import {IChainConfig} from "../contracts/interfaces/IChainConfig.sol";
 import {IGovernance} from "../contracts/interfaces/IGovernance.sol";
@@ -21,10 +21,9 @@ import {Staking} from "../contracts/Staking.sol";
 import {ChainConfig} from "../contracts/ChainConfig.sol";
 
 contract StakingPoolTest is Test {
-    StakingPool public stakingPool;
-    Staking public staking;
-    ChainConfig public chainConfig;
+    using stdStorage for StdStorage;
 
+    StakingPool public stakingPool;
     uint16 public constant EPOCH_LEN = 100;
 
     function setUp() public {
@@ -39,14 +38,14 @@ contract StakingPoolTest is Test {
             0, // minValidatorStakeAmount
             1 // minStakingAmount
         );
-        chainConfig = new ChainConfig(ctorChainConfig);
+        ChainConfig chainConfig = new ChainConfig(ctorChainConfig);
 
         address[] memory valAddrArray = new address[](1);
         valAddrArray[0] = vm.addr(5);
         uint256[] memory initialStakeArray = new uint256[](1);
 
         bytes memory ctoStaking = abi.encodeWithSignature("ctor(address[],uint256[],uint16)", valAddrArray, initialStakeArray, 0);
-        staking = new Staking(ctoStaking);
+        Staking staking = new Staking(ctoStaking);
 
         bytes memory ctorStakingPool = abi.encodeWithSignature("ctor()");
         stakingPool = new StakingPool(ctorStakingPool);
@@ -96,54 +95,6 @@ contract StakingPoolTest is Test {
             deployerProxyContract,
             tokenomicsContract
         );
-    }
-
-    function test_StakeUnstakeClaimFlow() public {
-        address staker = vm.addr(1);
-        uint256 stakedAmount = 100 ether;
-        uint256 ratio = stakingPool.getRatio(vm.addr(5));
-        uint256 expectedStakerShares = stakedAmount * ratio / 1e18;
-        uint256 expectedSharesSupply = stakingPool.getValidatorPool(vm.addr(6)).sharesSupply + expectedStakerShares;
-
-        // stake
-        vm.deal(staker, 1000 ether);
-        vm.prank(staker);
-        stakingPool.stake{value: stakedAmount}(vm.addr(5));
-
-        // verify that the state was updated
-        assertEq(stakingPool.getStakedAmount(vm.addr(5), staker), stakedAmount);
-        assertEq(stakingPool.getShares(vm.addr(5), staker), expectedStakerShares);
-        assertEq(stakingPool.getValidatorPool(vm.addr(5)).totalStakedAmount, stakedAmount);
-        assertEq(stakingPool.getValidatorPool(vm.addr(5)).sharesSupply, expectedSharesSupply);
-
-        // unstake
-        uint256 unstakeAmount = 10 ether;
-        uint256 unstakeShares = unstakeAmount * stakingPool.getRatio(vm.addr(5)) / 1e18;
-        uint256 expectedStakedAmount = stakedAmount - unstakeAmount;
-        uint256 expectedStakerSharesAfterUnstake = expectedStakerShares - unstakeShares;
-        uint256 expectedSharesSupplyAfterUnstake = expectedSharesSupply - unstakeShares;
-        vm.prank(staker);
-        stakingPool.unstake(vm.addr(5), unstakeAmount);
-
-        // verify that the state was updated (staked amount & shares were decremented)
-        assertEq(stakingPool.getStakedAmount(vm.addr(5), staker), expectedStakedAmount);
-        assertEq(stakingPool.getShares(vm.addr(5), staker), expectedStakerSharesAfterUnstake);
-        assertEq(stakingPool.getValidatorPool(vm.addr(5)).totalStakedAmount, expectedStakedAmount);
-        assertEq(stakingPool.getValidatorPool(vm.addr(5)).sharesSupply, expectedSharesSupplyAfterUnstake);
-
-        // claim
-        vm.roll(block.number + EPOCH_LEN * 2); // cooldown period
-        vm.prank(staker);
-        stakingPool.claim(vm.addr(5));
-
-        // verify that the staked amount & shares didn't change
-        assertEq(stakingPool.getStakedAmount(vm.addr(5), staker), expectedStakedAmount);
-        assertEq(stakingPool.getShares(vm.addr(5), staker), expectedStakerSharesAfterUnstake);
-        assertEq(stakingPool.getValidatorPool(vm.addr(5)).totalStakedAmount, expectedStakedAmount);
-        assertEq(stakingPool.getValidatorPool(vm.addr(5)).sharesSupply, expectedSharesSupplyAfterUnstake);
-
-        // verify the balance
-        assertEq(staker.balance, 1000 ether - 100 ether + 10 ether);
     }
 
     function test_StakeUnstakeClaimFlowWithMultipleStakers() public {
@@ -221,5 +172,46 @@ contract StakingPoolTest is Test {
         // verify the balances
         assertEq(staker1.balance, initialBalance - stakedAmount + unstakeAmount);
         assertEq(staker2.balance, initialBalance - stakedAmount + unstakeAmount);
+    }
+
+    /// @notice verify that claim() function decrements staked amounts & shares
+    ///         for accounts that unstaked before the upgrade
+    function test_StakeUnstakeClaimFlowBeforeChange() public {
+        address staker = vm.addr(1);
+        address validator = vm.addr(5);
+        uint256 stakeAmount = 100 ether;
+
+        // stake
+        vm.deal(staker, 1000 ether);
+        vm.prank(staker);
+        stakingPool.stake{value: stakeAmount}(validator);
+
+        StakingPool.ValidatorPool memory validatorPoolBeforeUnstake = stakingPool.getValidatorPool(validator);
+        uint256 stakerSharesBeforeUnstake = stakingPool.getShares(validator, staker);
+
+        // unstake
+        vm.prank(staker);
+        stakingPool.unstake(validator, stakeAmount);
+
+        // reset totalStake, shareSupply, _unstakedPostSherlockSupplyFixUpdate, staker shares
+        bytes32 validatorPoolsSlot = keccak256(abi.encode(validator, 102));
+        bytes32 stakerSharesSlot = keccak256(abi.encode(validator, 104));
+        bytes32 postAuditFixMappingSlot = keccak256(abi.encode(staker, 105));
+
+        vm.store(address(stakingPool), bytes32(uint256(validatorPoolsSlot) + 1), bytes32(validatorPoolBeforeUnstake.sharesSupply));
+        vm.store(address(stakingPool), bytes32(uint256(validatorPoolsSlot) + 2), bytes32(validatorPoolBeforeUnstake.totalStakedAmount));
+        vm.store(address(stakingPool), keccak256(abi.encode(staker, stakerSharesSlot)), bytes32(stakerSharesBeforeUnstake));
+        vm.store(address(stakingPool), postAuditFixMappingSlot, bytes32(abi.encode(false)));
+
+        // claim
+        vm.roll(block.number + EPOCH_LEN * 2); // cooldown period
+        vm.prank(staker);
+        stakingPool.claim(validator);
+
+        // verify that the staked amount & shares were decremented in claim()
+        assertEq(stakingPool.getStakedAmount(validator, staker), 0);
+        assertEq(stakingPool.getShares(validator, staker), 0);
+        assertEq(stakingPool.getValidatorPool(validator).totalStakedAmount, 0);
+        assertEq(stakingPool.getValidatorPool(validator).sharesSupply, 0);
     }
 }
