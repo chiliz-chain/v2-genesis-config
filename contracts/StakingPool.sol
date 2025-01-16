@@ -33,6 +33,7 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
     // accounts that unstaked tokens after #125 was applied.
     // this is needed to correctly decrement the variables for users that unstaked prior
     // to the change.
+    // (staker => bool)
     mapping(address => bool) internal _unstakedPostSherlockSupplyFixUpdate;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
