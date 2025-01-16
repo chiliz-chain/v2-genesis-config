@@ -41,13 +41,9 @@ contract StakingPoolTest is Test {
         );
         chainConfig = new ChainConfig(ctorChainConfig);
 
-        address[] memory valAddrArray = new address[](5);
+        address[] memory valAddrArray = new address[](1);
         valAddrArray[0] = vm.addr(5);
-        valAddrArray[1] = vm.addr(6);
-        valAddrArray[2] = vm.addr(7);
-        valAddrArray[3] = vm.addr(8);
-        valAddrArray[4] = vm.addr(9);
-        uint256[] memory initialStakeArray = new uint256[](5);
+        uint256[] memory initialStakeArray = new uint256[](1);
 
         bytes memory ctoStaking = abi.encodeWithSignature("ctor(address[],uint256[],uint16)", valAddrArray, initialStakeArray, 0);
         staking = new Staking(ctoStaking);
@@ -105,46 +101,46 @@ contract StakingPoolTest is Test {
     function test_StakeUnstakeClaimFlow() public {
         address staker = vm.addr(1);
         uint256 stakedAmount = 100 ether;
-        uint256 ratio = stakingPool.getRatio(vm.addr(6));
+        uint256 ratio = stakingPool.getRatio(vm.addr(5));
         uint256 expectedStakerShares = stakedAmount * ratio / 1e18;
         uint256 expectedSharesSupply = stakingPool.getValidatorPool(vm.addr(6)).sharesSupply + expectedStakerShares;
 
         // stake
         vm.deal(staker, 1000 ether);
         vm.prank(staker);
-        stakingPool.stake{value: stakedAmount}(vm.addr(6));
+        stakingPool.stake{value: stakedAmount}(vm.addr(5));
 
         // verify that the state was updated
-        assertEq(stakingPool.getStakedAmount(vm.addr(6), staker), stakedAmount);
-        assertEq(stakingPool.getShares(vm.addr(6), staker), expectedStakerShares);
-        assertEq(stakingPool.getValidatorPool(vm.addr(6)).totalStakedAmount, stakedAmount);
-        assertEq(stakingPool.getValidatorPool(vm.addr(6)).sharesSupply, expectedSharesSupply);
+        assertEq(stakingPool.getStakedAmount(vm.addr(5), staker), stakedAmount);
+        assertEq(stakingPool.getShares(vm.addr(5), staker), expectedStakerShares);
+        assertEq(stakingPool.getValidatorPool(vm.addr(5)).totalStakedAmount, stakedAmount);
+        assertEq(stakingPool.getValidatorPool(vm.addr(5)).sharesSupply, expectedSharesSupply);
 
         // unstake
         uint256 unstakeAmount = 10 ether;
-        uint256 unstakeShares = unstakeAmount * stakingPool.getRatio(vm.addr(6)) / 1e18;
+        uint256 unstakeShares = unstakeAmount * stakingPool.getRatio(vm.addr(5)) / 1e18;
         uint256 expectedStakedAmount = stakedAmount - unstakeAmount;
         uint256 expectedStakerSharesAfterUnstake = expectedStakerShares - unstakeShares;
         uint256 expectedSharesSupplyAfterUnstake = expectedSharesSupply - unstakeShares;
         vm.prank(staker);
-        stakingPool.unstake(vm.addr(6), unstakeAmount);
+        stakingPool.unstake(vm.addr(5), unstakeAmount);
 
         // verify that the state was updated (staked amount & shares were decremented)
-        assertEq(stakingPool.getStakedAmount(vm.addr(6), staker), expectedStakedAmount);
-        assertEq(stakingPool.getShares(vm.addr(6), staker), expectedStakerSharesAfterUnstake);
-        assertEq(stakingPool.getValidatorPool(vm.addr(6)).totalStakedAmount, expectedStakedAmount);
-        assertEq(stakingPool.getValidatorPool(vm.addr(6)).sharesSupply, expectedSharesSupplyAfterUnstake);
+        assertEq(stakingPool.getStakedAmount(vm.addr(5), staker), expectedStakedAmount);
+        assertEq(stakingPool.getShares(vm.addr(5), staker), expectedStakerSharesAfterUnstake);
+        assertEq(stakingPool.getValidatorPool(vm.addr(5)).totalStakedAmount, expectedStakedAmount);
+        assertEq(stakingPool.getValidatorPool(vm.addr(5)).sharesSupply, expectedSharesSupplyAfterUnstake);
 
         // claim
         vm.roll(block.number + EPOCH_LEN * 2); // cooldown period
         vm.prank(staker);
-        stakingPool.claim(vm.addr(6));
+        stakingPool.claim(vm.addr(5));
 
         // verify that the staked amount & shares didn't change
-        assertEq(stakingPool.getStakedAmount(vm.addr(6), staker), expectedStakedAmount);
-        assertEq(stakingPool.getShares(vm.addr(6), staker), expectedStakerSharesAfterUnstake);
-        assertEq(stakingPool.getValidatorPool(vm.addr(6)).totalStakedAmount, expectedStakedAmount);
-        assertEq(stakingPool.getValidatorPool(vm.addr(6)).sharesSupply, expectedSharesSupplyAfterUnstake);
+        assertEq(stakingPool.getStakedAmount(vm.addr(5), staker), expectedStakedAmount);
+        assertEq(stakingPool.getShares(vm.addr(5), staker), expectedStakerSharesAfterUnstake);
+        assertEq(stakingPool.getValidatorPool(vm.addr(5)).totalStakedAmount, expectedStakedAmount);
+        assertEq(stakingPool.getValidatorPool(vm.addr(5)).sharesSupply, expectedSharesSupplyAfterUnstake);
 
         // verify the balance
         assertEq(staker.balance, 1000 ether - 100 ether + 10 ether);
@@ -153,7 +149,7 @@ contract StakingPoolTest is Test {
     function test_StakeUnstakeClaimFlowWithMultipleStakers() public {
         address staker1 = vm.addr(1);
         address staker2 = vm.addr(2);
-        address validator = vm.addr(6); // validator 2
+        address validator = vm.addr(5);
         uint256 initialBalance = 100_000 ether;
         vm.coinbase(vm.addr(256));
         vm.deal(staker1, initialBalance);
