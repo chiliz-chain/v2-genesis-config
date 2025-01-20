@@ -58,6 +58,8 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
         for (uint256 i = 0; i < accounts.length; i++) {
             address account = accounts[i];
             uint16 share = shares[i];
+            (bool success, ) = account.call{value: 0, gas: 2300}("");
+            require(success, "SystemReward: account cannot receive CHZ");
             require(share >= SHARE_MIN_VALUE && share <= SHARE_MAX_VALUE, "SystemReward: bad share distribution");
             if (i >= _distributionShares.length) {
                 _distributionShares.push(DistributionShare(account, share));
