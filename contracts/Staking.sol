@@ -57,7 +57,6 @@ contract Staking is IStaking, InjectorContextHolder {
     event ValidatorSlashed(address indexed validator, uint32 slashes, uint64 epoch);
     event ValidatorJailed(address indexed validator, uint64 epoch);
     event ValidatorReleased(address indexed validator, uint64 epoch);
-    event ValidatorFixed(address validators, uint112 totalDelegated);
 
     // staker events
     event Delegated(address indexed validator, address indexed staker, uint256 amount, uint64 epoch);
@@ -856,18 +855,6 @@ contract Staking is IStaking, InjectorContextHolder {
     function togglePause() external onlyFromGovernance virtual {
         _paused = !_paused;
         emit Paused(_paused);
-    }
-
-    function fixValidatorEpoch(address validatorAddress, uint112 totalDelegated, uint64 epoch) external onlyFromGovernance virtual {
-        _fixValidatorEpoch(validatorAddress, totalDelegated, epoch);
-    }
-
-    function _fixValidatorEpoch(address validatorAddress, uint112 totalDelegated, uint64 epoch) internal {
-        ValidatorSnapshot memory snapshot = _validatorSnapshots[validatorAddress][epoch];
-        require(snapshot.totalDelegated > 0);
-        snapshot.totalDelegated = totalDelegated;
-        _validatorSnapshots[validatorAddress][epoch] = snapshot;
-        emit ValidatorFixed(validatorAddress, totalDelegated);
     }
 
     function _createOpDelegate(DelegationOpDelegate[] storage delegateQueue, uint64 epoch, uint112 amount) internal {
