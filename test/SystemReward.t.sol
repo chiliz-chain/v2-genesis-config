@@ -26,7 +26,7 @@ contract NotPayable {
     }
 }
 
-contract Base is Test {
+contract SystemRewardTest is Test {
     SystemReward public systemReward;
     ChainConfig public chainConfig;
 
