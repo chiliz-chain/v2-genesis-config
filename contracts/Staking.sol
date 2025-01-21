@@ -3,6 +3,9 @@ pragma solidity ^0.8.0;
 
 import "./Injector.sol";
 
+import {Test, console} from "forge-std/Test.sol";
+
+
 contract Staking is IStaking, InjectorContextHolder {
 
     /**
@@ -245,14 +248,26 @@ contract Staking is IStaking, InjectorContextHolder {
         return _currentEpoch() + 1;
     }
 
-    function _touchValidatorSnapshot(Validator memory validator, uint64 epoch) internal returns (ValidatorSnapshot storage) {
+    function _touchValidatorSnapshot(Validator memory validator, uint64 epoch)
+        internal
+        returns (ValidatorSnapshot storage)
+    {
         ValidatorSnapshot storage snapshot = _validatorSnapshots[validator.validatorAddress][epoch];
         // if snapshot is already initialized then just return it
         if (snapshot.totalDelegated > 0) {
             return snapshot;
         }
+        console.log("changedAt", validator.changedAt);
+        console.log("epoch", epoch);
+
+        uint64 EpochToCopyFrom = validator.changedAt;
+        if (epoch < validator.changedAt) {
+            EpochToCopyFrom = findLatestSnapshotBefore(validator.validatorAddress, epoch);
+            console.log("epoch < validator.changedAt", EpochToCopyFrom);
+        }
+
         // find previous snapshot to copy parameters from it
-        ValidatorSnapshot memory lastModifiedSnapshot = _validatorSnapshots[validator.validatorAddress][validator.changedAt];
+        ValidatorSnapshot memory lastModifiedSnapshot = _validatorSnapshots[validator.validatorAddress][EpochToCopyFrom];
         // last modified snapshot might store zero value, for first delegation it might happen and its not critical
         snapshot.totalDelegated = lastModifiedSnapshot.totalDelegated;
         snapshot.commissionRate = lastModifiedSnapshot.commissionRate;
@@ -260,8 +275,25 @@ contract Staking is IStaking, InjectorContextHolder {
         // amount in the future (check condition upper)
         if (epoch > validator.changedAt) {
             validator.changedAt = epoch;
+            console.log("changedAt becomes", epoch);
+        } else {
+            console.log("changedAt not updated");
         }
         return snapshot;
+    }
+
+    function findLatestSnapshotBefore(address validatorAddress, uint64 epoch) internal view returns (uint64) {
+        uint64 latestEpoch = 0;
+
+        for (uint64 i = epoch - 1; i >= 0; i--) {
+            if (_validatorSnapshots[validatorAddress][i].totalDelegated > 0) {
+                latestEpoch = i;
+                break;
+            }
+        }
+
+        require(latestEpoch > 0, "No valid snapshot found before the touch epoch");
+        return latestEpoch;
     }
 
     function _fetchValidatorSnapshot(Validator memory validator, uint64 epoch) internal view returns (ValidatorSnapshot memory) {
