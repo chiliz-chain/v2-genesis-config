@@ -20,7 +20,7 @@ import {StakingPool} from "../contracts/StakingPool.sol";
 import {Staking} from "../contracts/Staking.sol";
 import {ChainConfig} from "../contracts/ChainConfig.sol";
 
-contract StakingTest is Test {
+contract StakingSherlock121 is Test {
     StakingPool public stakingPool;
     Staking public staking;
     ChainConfig public chainConfig;
@@ -114,124 +114,51 @@ contract StakingTest is Test {
         validators = stakingContract.getValidators();
     }
 
-    function test_stake() public {
-        // user stakes on validator 2
-        uint256 i;
-        address user;
-        uint16 loop = 1;
-        for (i = 1; i <= loop; i++) {
-            user = vm.addr(i);
-            vm.deal(user, 3000 ether);
-            vm.prank(user);
-            stakingPool.stake{value: 500 ether}(vm.addr(6));
-        }
-        for (i = 1; i <= loop; i++) {
-            user = vm.addr(i);
-            vm.prank(user);
-            stakingPool.unstake(vm.addr(6), 1 ether);
-        }
-
-        vm.roll(block.number + 10 * 28800);
-
-        vm.prank(vm.addr(1));
-        vm.startSnapshotGas("A");
-
-        stakingPool.claim(vm.addr(6));
-
-        uint256 gasUsed = vm.stopSnapshotGas();
-        console.log("Gas used for claim: ", gasUsed);
-    }
-
-        function test_sherlock92() public {
-        // users stake on validator 2
-        address validator = vm.addr(6);
-
-        uint256 mapSlot = 105;
-        bytes32 slotVal = keccak256(abi.encode(validator, mapSlot));
-        bytes32 slotDeleg = keccak256(abi.encode(address(stakingPool), slotVal));
-        uint256 len;
-        uint256 gap;
-
-        address user;
-
-        // 10 users are staking
-        uint256 i;
-        for (i = 1; i <= 10; i++) {
-            user = vm.addr(i);
-            vm.deal(user, 3000 ether);
-            vm.prank(user);
-            stakingPool.stake{value: 500 ether}(validator);
-        }
-
-        // 2 users are unstaking
-        for (i = 1; i <= 2; i++) {
-            user = vm.addr(i);
-            vm.prank(user);
-            stakingPool.unstake(validator, 2 ether);
-        }
-
-        len = uint256(vm.load(address(staking), bytes32(uint256(slotDeleg) + 2)));
-        gap = uint256(vm.load(address(staking), bytes32(uint256(slotDeleg) + 3)));
-
-        assertEq(len, 1);
-        assertEq(gap, 0);
-
-        vm.roll(block.number + 1 * EPOCH_LEN);
-
-        // 8 other users are unstaking
-        for (i = 3; i <= 10; i++) {
-            user = vm.addr(i);
-            vm.prank(user);
-            stakingPool.unstake(validator, 2 ether);
-        }
-
-        len = uint256(vm.load(address(staking), bytes32(uint256(slotDeleg) + 2)));
-        gap = uint256(vm.load(address(staking), bytes32(uint256(slotDeleg) + 3)));
-
-        assertEq(len, 2);
-        assertEq(gap, 0);
-
-        vm.roll(block.number + 1 * EPOCH_LEN);
-
-        // first user is claiming
-        user = vm.addr(1);
-        vm.prank(user);
-
-        stakingPool.claim(validator);
-
-        len = uint256(vm.load(address(staking), bytes32(uint256(slotDeleg) + 2)));
-        gap = uint256(vm.load(address(staking), bytes32(uint256(slotDeleg) + 3)));
-
-        assertEq(len, 2);
-        assertEq(gap, 1);
-    }
-
     function test_sherlock121() public {
         address user;
         address validator = vm.addr(6);
 
         uint256 totalDelegated;
+        uint256 totalRewards;
 
         user = vm.addr(1);
         vm.deal(user, 3000 ether);
+
+
         vm.startPrank(user);
-        stakingPool.stake{value: 500 ether}(validator);
+        
+        // Stake at epoch 0 but will modify next epoch (1)
+        stakingPool.stake{value: 1 ether}(validator);
 
         (,, totalDelegated,,,,,,) = staking.getValidatorStatus(validator);
-        console.log("Total Delegated: ", totalDelegated);
-        assertEq(totalDelegated, 1500 ether);
+        assertEq(totalDelegated, 1001 ether);
 
+        // Advance to epoch 5
         vm.roll(block.number + 5 * EPOCH_LEN);
         uint64 currentEpoch = staking.currentEpoch();
 
-        stakingPool.stake{value: 500 ether}(validator);
-        (,, totalDelegated,,,,,,) = staking.getValidatorStatusAtEpoch(validator, currentEpoch);
-        console.log("Total Delegated previous epoch: ", totalDelegated);
+        // Stake at epoch 5 but will modify next epoch (6)
+        stakingPool.stake{value: 1 ether}(validator);
         (,, totalDelegated,,,,,,) = staking.getValidatorStatus(validator);
-        console.log("Total Delegated at changedAt epoch: ", totalDelegated);
-        (,, totalDelegated,,,,,,) = staking.getValidatorStatusAtEpoch(validator, currentEpoch + 1);
-        console.log("Total Delegated next epoch: ", totalDelegated);
+        assertEq(totalDelegated, 1002 ether);
+        vm.stopPrank();
 
-        // assertEq(totalDelegated, 2000 ether);
+        (,, totalDelegated,,,,,, totalRewards) = staking.getValidatorStatusAtEpoch(validator, currentEpoch);
+        assertEq(totalDelegated, 0);
+        assertEq(totalRewards, 0);
+
+        // Deposit fees to validator that will modify the current epoch
+        deal(block.coinbase, 3 ether);
+        vm.prank(block.coinbase);
+        // Deposit at epoch 5 but will modify current epoch (5) with copied data
+        // from latest valid snapshot (here epoch 1)
+        staking.deposit{value: 3 ether}(validator);
+
+        (,, totalDelegated,,,,,, totalRewards) = staking.getValidatorStatusAtEpoch(validator, currentEpoch);
+
+        // Make sure we dont copy future data to current epoch
+        assertEq(totalDelegated, 1001 ether);
+        assertEq(totalRewards, 3 ether);
+
     }
 }
