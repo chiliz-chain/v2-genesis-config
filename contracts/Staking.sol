@@ -465,8 +465,15 @@ contract Staking is IStaking, InjectorContextHolder {
                 delegation.delegateQueue[delegateGap] = delegateOp;
                 break;
             }
-            delete delegation.delegateQueue[delegateGap];
-            ++delegateGap;
+
+            if (beforeEpochExclude <= voteChangedAtEpoch) {
+                // Partially processed. Stay on the last item, but with updated latest processed epoch
+                delegation.delegateQueue[delegateGap] = delegateOp;
+            } else {
+                // Fully processed, the delegation can be deleted from queue.
+                delete delegation.delegateQueue[delegateGap];
+                ++delegateGap;
+            }
         }
         delegation.delegateGap = delegateGap;
         return availableFunds;
