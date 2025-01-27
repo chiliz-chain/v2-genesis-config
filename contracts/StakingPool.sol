@@ -97,11 +97,12 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
     function _calcRatio(ValidatorPool memory validatorPool) internal view returns (uint256) {
         (uint256 stakedAmount, /*uint256 dustRewards*/) = _calcUnclaimedDelegatorFee(validatorPool);
         uint256 stakeWithRewards = validatorPool.totalStakedAmount + stakedAmount;
-        if (stakeWithRewards == 0) {
+        uint256 sharesSupply = validatorPool.sharesSupply;
+        if (stakeWithRewards == 0 || sharesSupply == 0) {
             return 1e18;
         }
         // we're doing upper rounding here
-        return (validatorPool.sharesSupply * 1e18 + stakeWithRewards - 1) / stakeWithRewards;
+        return (sharesSupply * 1e18 + stakeWithRewards - 1) / stakeWithRewards;
     }
 
     function _currentEpoch() internal view returns (uint64) {
