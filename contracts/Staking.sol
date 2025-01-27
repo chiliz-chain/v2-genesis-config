@@ -600,6 +600,10 @@ contract Staking is IStaking, InjectorContextHolder {
     function _removeValidator(address account) internal {
         Validator memory validator = _validatorsMap[account];
         require(validator.status != ValidatorStatus.NotFound, "nf"); // not found
+        // revert if validator has delegators.
+        // (next epoch because someone might've staked in current epoch and that's saved in next epoch's snapshot)
+        ValidatorSnapshot storage validatorSnapshot = _touchValidatorSnapshot(validator, _nextEpoch());
+        require(validatorSnapshot.totalDelegated == 0 && validatorSnapshot.totalRewards == 0, "hd"); // has delegator(s)
         // remove validator from active list if exists
         _removeValidatorFromActiveList(account);
         // remove from validators map
