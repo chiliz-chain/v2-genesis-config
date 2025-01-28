@@ -216,9 +216,9 @@ contract Staking is IStaking, InjectorContextHolder {
         emit ValidatorReleased(validatorAddress, _currentEpoch());
     }
 
-    function _totalDelegatedToValidator(Validator memory validator) internal view returns (uint256) {
-        ValidatorSnapshot memory snapshot = _validatorSnapshots[validator.validatorAddress][validator.changedAt];
-        return _unpackCompact(snapshot.totalDelegated);
+    function _totalDelegatedToValidator(Validator memory validator, uint64 epoch) internal view returns (uint256) {
+        ValidatorSnapshot memory s = _fetchValidatorSnapshot(validator, epoch);
+        return _unpackCompact(s.totalDelegated);
     }
 
     function delegate(address validatorAddress) payable external override {
@@ -665,7 +665,7 @@ contract Staking is IStaking, InjectorContextHolder {
             orderedValidators[i] = _activeValidatorsList[i];
         }
         // we need to select k top validators out of n
-        uint256 k = _chainConfigContract.getActiveValidatorsLength();
+        uint256 k = _chainConfigContract.getActiveValidatorsLength(); // TODO: SHOULD THIS BE PER EPOCH?
         if (k > n) {
             k = n;
         }
@@ -674,7 +674,7 @@ contract Staking is IStaking, InjectorContextHolder {
             Validator memory currentMax = _validatorsMap[orderedValidators[nextValidator]];
             for (uint256 j = i + 1; j < n; j++) {
                 Validator memory current = _validatorsMap[orderedValidators[j]];
-                if (_totalDelegatedToValidator(currentMax) < _totalDelegatedToValidator(current)) {
+                if (_totalDelegatedToValidator(currentMax, epoch) < _totalDelegatedToValidator(current, epoch)) {
                     nextValidator = j;
                     currentMax = current;
                 }
