@@ -651,6 +651,14 @@ contract Staking is IStaking, InjectorContextHolder {
     }
 
     function getValidators() public view override returns (address[] memory) {
+        return _getValidators(_currentEpoch());
+    }
+
+    function getValidatorsAtEpoch(uint64 epoch) public view returns (address[] memory) {
+        return _getValidators(epoch);
+    }
+
+    function _getValidators(uint64 epoch) internal view returns (address[] memory) {
         uint256 n = _activeValidatorsList.length;
         address[] memory orderedValidators = new address[](n);
         for (uint256 i = 0; i < n; i++) {
