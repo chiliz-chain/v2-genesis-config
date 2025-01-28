@@ -114,7 +114,7 @@ contract StakingSherlock121 is Test {
         validators = stakingContract.getValidators();
     }
 
-    function test_sherlock121() public {
+    function test_CopyTheLatestValidSnapshot() public {
         address user;
         address validator = vm.addr(6);
 
@@ -126,7 +126,7 @@ contract StakingSherlock121 is Test {
 
 
         vm.startPrank(user);
-        
+
         // Stake at epoch 0 but will modify next epoch (1)
         stakingPool.stake{value: 1 ether}(validator);
 
@@ -158,6 +158,53 @@ contract StakingSherlock121 is Test {
 
         // Make sure we dont copy future data to current epoch
         assertEq(totalDelegated, 1001 ether);
+        assertEq(totalRewards, 3 ether);
+
+    }
+
+    function test_copyCurrentEpochSnapshot() public {
+                address user;
+        address validator = vm.addr(6);
+
+        uint256 totalDelegated;
+        uint256 totalRewards;
+
+        user = vm.addr(1);
+        vm.deal(user, 3000 ether);
+
+
+        vm.startPrank(user);
+
+        // Stake at epoch 0 but will modify next epoch (1)
+        stakingPool.stake{value: 1 ether}(validator);
+
+        (,, totalDelegated,,,,,,) = staking.getValidatorStatus(validator);
+        assertEq(totalDelegated, 1001 ether);
+
+        // Advance to epoch 100
+        vm.roll(block.number + 100 * EPOCH_LEN);
+        uint64 currentEpoch = staking.currentEpoch();
+
+        // Stake at epoch 100 but will modify next epoch (101)
+        stakingPool.stake{value: 1 ether}(validator);
+        (,, totalDelegated,,,,,,) = staking.getValidatorStatus(validator);
+        assertEq(totalDelegated, 1002 ether);
+        vm.stopPrank();
+
+        (,, totalDelegated,,,,,, totalRewards) = staking.getValidatorStatusAtEpoch(validator, currentEpoch);
+        assertEq(totalDelegated, 0);
+        assertEq(totalRewards, 0);
+
+        deal(block.coinbase, 3 ether);
+        vm.prank(block.coinbase);
+        // Deposit at epoch 100 but will modify current epoch (100) with copied data
+        // from CURRENT  snapshot cause all MAX_NB_EPOCH_TO_CHECK are empty
+        staking.deposit{value: 3 ether}(validator);
+
+        (,, totalDelegated,,,,,, totalRewards) = staking.getValidatorStatusAtEpoch(validator, currentEpoch);
+
+        // Make sure we dont copy future data to current epoch
+        assertEq(totalDelegated, 0 ether);
         assertEq(totalRewards, 3 ether);
 
     }
