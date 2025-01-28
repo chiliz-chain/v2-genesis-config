@@ -559,6 +559,7 @@ contract Staking is IStaking, InjectorContextHolder {
         validator.ownerAddress = validatorOwner;
         validator.status = status;
         validator.changedAt = sinceEpoch;
+        validator.claimedAt = sinceEpoch;
         // save validator owner
         require(_validatorOwners[validatorOwner] == address(0x00), "ou"); // owner already in use
         _validatorOwners[validatorOwner] = validatorAddress;
