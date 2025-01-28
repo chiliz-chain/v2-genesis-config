@@ -258,13 +258,10 @@ contract Staking is IStaking, InjectorContextHolder {
         if (snapshot.totalDelegated > 0) {
             return snapshot;
         }
-        console.log("changedAt", validator.changedAt);
-        console.log("epoch", epoch);
 
         uint64 EpochToCopyFrom = validator.changedAt;
         if (epoch < validator.changedAt) {
             EpochToCopyFrom = findLatestSnapshotBefore(validator.validatorAddress, epoch);
-            console.log("epoch < validator.changedAt", EpochToCopyFrom);
         }
 
         // find previous snapshot to copy parameters from it
@@ -276,24 +273,27 @@ contract Staking is IStaking, InjectorContextHolder {
         // amount in the future (check condition upper)
         if (epoch > validator.changedAt) {
             validator.changedAt = epoch;
-            console.log("changedAt becomes", epoch);
-        } else {
-            console.log("changedAt not updated");
         }
         return snapshot;
     }
 
     function findLatestSnapshotBefore(address validatorAddress, uint64 epoch) internal view returns (uint64) {
-        uint64 latestEpoch = 0;
+        // Adding a security check to avoid consuming too much gas
+        uint8 MAX_NB_EPOCH_TO_CHECK = 50;
 
-        for (uint64 i = epoch - 1; i >= 0; i--) {
-            if (_validatorSnapshots[validatorAddress][i].totalDelegated > 0) {
-                latestEpoch = i;
+        uint64 latestEpoch = 0;
+        uint64 i;
+        for (i = 0; i <= MAX_NB_EPOCH_TO_CHECK; i++) {
+            uint64 e = epoch - i;
+            if (_validatorSnapshots[validatorAddress][e].totalDelegated > 0) {
+                latestEpoch = e;
                 break;
             }
         }
+        if (i > MAX_NB_EPOCH_TO_CHECK) {
+            return epoch;
+        }
 
-        require(latestEpoch > 0, "No valid snapshot found before the touch epoch");
         return latestEpoch;
     }
 
