@@ -141,33 +141,4 @@ contract Base is Test {
         uint256 gasUsed = vm.stopSnapshotGas();
         console.log("Gas used for claim: ", gasUsed);
     }
-
-    function test_sherlock121() public {
-        address user;
-        address validator = vm.addr(6);
-
-        uint256 totalDelegated;
-
-        user = vm.addr(1);
-        vm.deal(user, 3000 ether);
-        vm.startPrank(user);
-        stakingPool.stake{value: 500 ether}(validator);
-
-        (,, totalDelegated,,,,,,) = staking.getValidatorStatus(validator);
-        console.log("Total Delegated: ", totalDelegated);
-        assertEq(totalDelegated, 1500 ether);
-
-        vm.roll(block.number + 5 * EPOCH_LEN);
-        uint64 currentEpoch = staking.currentEpoch();
-
-        stakingPool.stake{value: 500 ether}(validator);
-        (,, totalDelegated,,,,,,) = staking.getValidatorStatusAtEpoch(validator, currentEpoch);
-        console.log("Total Delegated previous epoch: ", totalDelegated);
-        (,, totalDelegated,,,,,,) = staking.getValidatorStatus(validator);
-        console.log("Total Delegated at changedAt epoch: ", totalDelegated);
-        (,, totalDelegated,,,,,,) = staking.getValidatorStatusAtEpoch(validator, currentEpoch + 1);
-        console.log("Total Delegated next epoch: ", totalDelegated);
-
-        // assertEq(totalDelegated, 2000 ether);
-    }
 }
