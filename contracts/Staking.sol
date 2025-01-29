@@ -3,8 +3,6 @@ pragma solidity ^0.8.0;
 
 import "./Injector.sol";
 
-import {Test, console} from "forge-std/Test.sol";
-
 
 contract Staking is IStaking, InjectorContextHolder {
 
