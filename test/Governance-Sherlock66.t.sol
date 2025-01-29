@@ -110,7 +110,7 @@ contract GovernanceSherlock66 is Test {
         uint256 initialQuorum = (90e18) * 2/3;
         assertEq(governance.quorum(block.number), initialQuorum);
 
-        staking.delegate{value: 50 ether}(vm.addr(8));
+        staking.delegate{value: 40 ether}(vm.addr(8));
 
         vm.roll(block.number + EPOCH_LEN);
 
