@@ -13,6 +13,8 @@ interface IStaking is IValidatorSet {
 
     function isValidator(address validator) external view returns (bool);
 
+    function getValidatorsAtEpoch(uint64 epoch) external view returns (address[] memory);
+
     function getValidatorStatus(address validator) external view returns (
         address ownerAddress,
         uint8 status,
@@ -75,7 +77,7 @@ interface IStaking is IValidatorSet {
     function claimValidatorFeeAtEpoch(address validator, uint64 beforeEpoch) external;
 
     function getDelegatorFee(address validator, address delegator) external view returns (uint256);
-    
+
     function getDelegatorFeeAtEpoch(address validator, address delegator, uint64) external view returns (uint256);
 
     function getPendingDelegatorFee(address validator, address delegator) external view returns (uint256);
