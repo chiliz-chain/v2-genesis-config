@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 interface IChainConfig {
 
     function getActiveValidatorsLength() external view returns (uint32);
+    function getActiveValidatorsLength(uint64 epoch) external view returns (uint32);
 
     function setActiveValidatorsLength(uint32 newValue) external;
 
