@@ -25,15 +25,15 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         uint256 minStakingAmount;
     }
 
-    struct ActiveValidatorLength {
-        // (epoch => activeValidatorsLength)
+    struct Uint32Param {
+        // (epoch => value)
         mapping(uint64 => uint32) value;
         // list of available epochs, sorted in asc order.
         uint64[] epochs;
     }
 
     struct EpochConsensusParams {
-        ActiveValidatorLength activeValidatorLength;
+        Uint32Param activeValidatorLength;
     }
 
     ConsensusParams private _consensusParams;
@@ -81,7 +81,7 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
     }
 
     function getActiveValidatorsLength(uint64 epoch) external view returns (uint32) {
-        ActiveValidatorLength storage avl = _epochConsensusParams.activeValidatorLength;
+        Uint32Param storage avl = _epochConsensusParams.activeValidatorLength;
 
         if (avl.value[epoch] > 0) {
             return avl.value[epoch];
@@ -113,7 +113,7 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
     function initActiveValidatorLengthEpochParam(uint64[] memory epochs, uint32[] memory lengths) public {
         require(epochs.length == lengths.length, "IA"); // invalid arguments
 
-        ActiveValidatorLength storage avl = _epochConsensusParams.activeValidatorLength;
+        Uint32Param storage avl = _epochConsensusParams.activeValidatorLength;
         require(avl.epochs.length == 0, "AI"); // already initialized
 
         uint256 len = epochs.length;
@@ -125,7 +125,7 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
     }
 
     function setActiveValidatorsLength(uint32 newValue) external override onlyFromGovernance {
-        ActiveValidatorLength storage avl = _epochConsensusParams.activeValidatorLength;
+        Uint32Param storage avl = _epochConsensusParams.activeValidatorLength;
 
         // set new value for next epoch
         uint64 nextEpoch = _stakingContract.nextEpoch();
