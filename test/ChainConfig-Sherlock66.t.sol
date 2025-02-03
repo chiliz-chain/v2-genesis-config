@@ -16,16 +16,14 @@ import "../contracts/interfaces/IInjector.sol";
 import "../contracts/interfaces/IDeployerProxy.sol";
 import "../contracts/interfaces/ITokenomics.sol";
 
-import {StakingPool} from "../contracts/StakingPool.sol";
 import {Staking} from "../contracts/Staking.sol";
-import {Governance} from "../contracts/Governance.sol";
 import {ChainConfig} from "../contracts/ChainConfig.sol";
 
-contract GovernanceSherlock66 is Test {
+contract ChainConfigSherlock66 is Test {
     Staking public staking;
-    Governance public governance;
+    ChainConfig public chainConfig;
 
-    uint16 public constant EPOCH_LEN = 100;
+    uint16 public constant EPOCH_LEN = 1;
 
     function setUp() public {
         bytes memory ctorChainConfig = abi.encodeWithSignature(
@@ -39,7 +37,7 @@ contract GovernanceSherlock66 is Test {
             0, // minValidatorStakeAmount
             0 // minStakingAmount
         );
-        ChainConfig chainConfig = new ChainConfig(ctorChainConfig);
+        chainConfig = new ChainConfig(ctorChainConfig);
 
         address[] memory valAddrArray = new address[](4);
         valAddrArray[0] = vm.addr(5);
@@ -55,14 +53,11 @@ contract GovernanceSherlock66 is Test {
         bytes memory ctoStaking = abi.encodeWithSignature("ctor(address[],uint256[],uint16)", valAddrArray, initialStakeArray, 0);
         staking = new Staking(ctoStaking);
 
-        bytes memory ctorGovernance = abi.encodeWithSignature("ctor(uint256)", EPOCH_LEN);
-        governance = new Governance(ctorGovernance);
-
         IStaking stakingContract = IStaking(staking);
         ISlashingIndicator slashingIndicatorContract = ISlashingIndicator(vm.addr(20));
         ISystemReward systemRewardContract = ISystemReward(vm.addr(20));
         IStakingPool stakingPoolContract = IStakingPool(vm.addr(20));
-        IGovernance governanceContract = IGovernance(governance);
+        IGovernance governanceContract = IGovernance(vm.addr(20));
         IChainConfig chainConfigContract = IChainConfig(chainConfig);
         IRuntimeUpgrade runtimeUpgradeContract = IRuntimeUpgrade(vm.addr(20));
         IDeployerProxy deployerProxyContract = IDeployerProxy(vm.addr(20));
@@ -92,33 +87,53 @@ contract GovernanceSherlock66 is Test {
             deployerProxyContract,
             tokenomicsContract
         );
-
-        governance.initManually(
-            stakingContract,
-            slashingIndicatorContract,
-            systemRewardContract,
-            stakingPoolContract,
-            governanceContract,
-            chainConfigContract,
-            runtimeUpgradeContract,
-            deployerProxyContract,
-            tokenomicsContract
-        );
     }
 
-    function test_quorum() public {
-        uint256 initialQuorum = (90e18) * 2/3;
-        assertEq(governance.quorum(block.number), initialQuorum);
+    function test_getActiveValidatorsLength() public {
+        // check current epoch value
+        assertEq(chainConfig.getActiveValidatorsLength(staking.currentEpoch()), 3);
 
-        staking.delegate{value: 40 ether}(vm.addr(8));
+        // check value for epoch that doesn't exist in the mapping.
+        vm.roll(block.number + EPOCH_LEN * 5);
+        assertEq(chainConfig.getActiveValidatorsLength(staking.currentEpoch()), 3);
 
-        vm.roll(block.number + EPOCH_LEN);
+        // update the value, check for epoch that is before last update epoch
+        uint64 lastUpdateEpoch = staking.nextEpoch();
+        vm.prank(vm.addr(20));
+        chainConfig.setActiveValidatorsLength(4);
+        vm.roll(block.number + EPOCH_LEN * 5);
 
-        uint256 newQuorum = (120e18) * 2/3;
+        assertEq(chainConfig.getActiveValidatorsLength(lastUpdateEpoch), 4);
+        assertEq(chainConfig.getActiveValidatorsLength(lastUpdateEpoch-6), 3);
+    }
 
-        // quorum at old block should remain as it was before
-        // quorum at new block should change
-        assertEq(governance.quorum(block.number - EPOCH_LEN), initialQuorum);
-        assertEq(governance.quorum(block.number), newQuorum);
+    /// @notice simple test to "benchmark" the search, skipped because it takes forever.
+    function test_getActiveValidatorsLength_MaxEpochs() public {
+        vm.skip(true);
+
+        uint64 startEpoch = staking.currentEpoch();
+        console.log("Start epoch", startEpoch);
+        vm.pauseGasMetering();
+        uint256 ITERATIONS = 100_000_000;
+        for (uint256 i = 0; i < ITERATIONS; i++) {
+            vm.roll(block.number + EPOCH_LEN);
+            if (i % 5_000_000 == 0) {
+                vm.prank(vm.addr(20));
+                chainConfig.setActiveValidatorsLength(uint32(i));
+                console.log("UPDATE AT EPOCH ", staking.currentEpoch());
+            }
+        }
+        vm.resumeGasMetering();
+
+        console.log("Final epoch", staking.currentEpoch());
+        console.log("diff", staking.currentEpoch()-startEpoch);
+
+
+        vm.startSnapshotGas("A");
+
+        chainConfig.getActiveValidatorsLength(40020002);
+
+        uint256 gasUsed = vm.stopSnapshotGas();
+        console.log("Gas needed: ", gasUsed);
     }
 }
