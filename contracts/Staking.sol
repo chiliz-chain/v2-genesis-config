@@ -737,7 +737,7 @@ contract Staking is IStaking, InjectorContextHolder {
             orderedValidators[i] = _activeValidatorsList[i];
         }
         // we need to select k top validators out of n
-        uint256 k = _chainConfigContract.getActiveValidatorsLength(); // TODO: SHOULD THIS BE PER EPOCH?
+        uint256 k = _chainConfigContract.getActiveValidatorsLength(epoch);
         if (k > n) {
             k = n;
         }
