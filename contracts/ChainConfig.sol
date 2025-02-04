@@ -7,7 +7,7 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
 
     event ActiveValidatorsLengthChanged(uint32 prevValue, uint32 newValue, uint64 epoch);
     event EpochBlockIntervalChanged(uint32 prevValue, uint32 newValue);
-    event MisdemeanorThresholdChanged(uint32 prevValue, uint32 newValue);
+    event MisdemeanorThresholdChanged(uint32 prevValue, uint32 newValue, uint64 epoch);
     event FelonyThresholdChanged(uint32 prevValue, uint32 newValue);
     event ValidatorJailEpochLengthChanged(uint32 prevValue, uint32 newValue);
     event UndelegatePeriodChanged(uint32 prevValue, uint32 newValue);
@@ -17,7 +17,7 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
     struct ConsensusParams {
         uint32 activeValidatorsLength; // depricated. use epochConsensusParams.activeValidatorLength
         uint32 epochBlockInterval;
-        uint32 misdemeanorThreshold;
+        uint32 misdemeanorThreshold; // depricated. use epochConsensusParams.misdemeanorThreshold
         uint32 felonyThreshold;
         uint32 validatorJailEpochLength;
         uint32 undelegatePeriod;
@@ -34,6 +34,7 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
 
     struct EpochConsensusParams {
         EpochToValue activeValidatorLength;
+        EpochToValue misdemeanorThreshold;
     }
 
     ConsensusParams private _consensusParams;
@@ -57,8 +58,9 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         emit ActiveValidatorsLengthChanged(0, activeValidatorsLength, 0);
         _consensusParams.epochBlockInterval = epochBlockInterval;
         emit EpochBlockIntervalChanged(0, epochBlockInterval);
-        _consensusParams.misdemeanorThreshold = misdemeanorThreshold;
-        emit MisdemeanorThresholdChanged(0, misdemeanorThreshold);
+        _epochConsensusParams.misdemeanorThreshold.value[0] = misdemeanorThreshold;
+        _epochConsensusParams.misdemeanorThreshold.epochs.push(0);
+        emit MisdemeanorThresholdChanged(0, misdemeanorThreshold, 0);
         _consensusParams.felonyThreshold = felonyThreshold;
         emit FelonyThresholdChanged(0, felonyThreshold);
         _consensusParams.validatorJailEpochLength = validatorJailEpochLength;
@@ -123,6 +125,20 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         }
     }
 
+    function initMisdemeanorThresholdParam(uint64[] memory epochs, uint32[] memory thresholds) public {
+        require(epochs.length == thresholds.length, "IA"); // invalid arguments
+
+        Uint32Param storage mt = _epochConsensusParams.misdemeanorThreshold;
+        require(mt.epochs.length == 0, "AI"); // already initialized
+
+        uint256 len = epochs.length;
+        for (uint256 i = 0; i < len; i++) {
+            uint64 epoch = epochs[i];
+            mt.value[epoch] = thresholds[i];
+            mt.epochs.push(epoch);
+        }
+    }
+
     function setActiveValidatorsLength(uint32 newValue) external override onlyFromGovernance {
         EpochToValue storage avl = _epochConsensusParams.activeValidatorLength;
 
@@ -142,10 +158,45 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         return _consensusParams.misdemeanorThreshold;
     }
 
+    function getMisdemeanorThreshold(uint64 epoch) external view returns (uint32) {
+        Uint32Param storage mt = _epochConsensusParams.misdemeanorThreshold;
+
+        if (mt.value[epoch] > 0) {
+            return mt.value[epoch];
+        } else {
+            uint256 epochsLen = mt.epochs.length;
+            uint64 lastAvailableEpoch = mt.epochs[epochsLen - 1];
+            // If we don't have the value for the epoch, return the lastAvailable epoch value if possible.
+            // (actually, epoch == lastAvailableEpoch case should be covered by the if statement above, but whatever..)
+            if (epoch >= lastAvailableEpoch) {
+                return mt.value[lastAvailableEpoch];
+            } else {
+                // If we don't have the value for the epoch and epoch < lastAvailable
+                // binary search to find the closest epoch
+                uint256 left = 0;
+                uint256 right = epochsLen;
+                while (left < right) {
+                     uint256 mid = left + (right - left) / 2;
+                     if (mt.epochs[mid] <= epoch) {
+                         left = mid + 1;
+                     } else {
+                         right = mid;
+                     }
+                }
+                return mt.value[mt.epochs[left-1]];
+            }
+        }
+    }
+
     function setMisdemeanorThreshold(uint32 newValue) external override onlyFromGovernance {
-        uint32 prevValue = _consensusParams.misdemeanorThreshold;
-        _consensusParams.misdemeanorThreshold = newValue;
-        emit MisdemeanorThresholdChanged(prevValue, newValue);
+        Uint32Param storage mt = _epochConsensusParams.misdemeanorThreshold;
+
+        // set new value for next epoch
+        uint64 nextEpoch = _stakingContract.nextEpoch();
+        uint32 prevValue = mt.value[mt.epochs[mt.epochs.length - 1]];
+        mt.value[nextEpoch] = newValue;
+        mt.epochs.push(nextEpoch);
+        emit MisdemeanorThresholdChanged(prevValue, newValue, nextEpoch);
     }
 
     function getFelonyThreshold() external view override returns (uint32) {
