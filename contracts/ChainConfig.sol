@@ -81,34 +81,9 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         return getActiveValidatorsLength(_stakingContract.currentEpoch());
     }
 
-    function getActiveValidatorsLength(uint64 epoch) public view returns (uint32) {
-        EpochToValue storage avl = _epochConsensusParams.activeValidatorLength;
-
-        if (avl.value[epoch] > 0) {
-            return avl.value[epoch];
-        } else {
-            uint256 epochsLen = avl.epochs.length;
-            uint64 lastAvailableEpoch = avl.epochs[epochsLen - 1];
-            // If we don't have the value for the epoch, return the lastAvailable epoch value if possible.
-            // (actually, epoch == lastAvailableEpoch case should be covered by the if statement above, but whatever..)
-            if (epoch >= lastAvailableEpoch) {
-                return avl.value[lastAvailableEpoch];
-            } else {
-                // If we don't have the value for the epoch and epoch < lastAvailable
-                // binary search to find the closest epoch
-                uint256 left = 0;
-                uint256 right = epochsLen;
-                while (left < right) {
-                     uint256 mid = left + (right - left) / 2;
-                     if (avl.epochs[mid] <= epoch) {
-                         left = mid + 1;
-                     } else {
-                         right = mid;
-                     }
-                }
-                return avl.value[avl.epochs[left-1]];
-            }
-        }
+    function getActiveValidatorsLength(uint64 epoch) external view returns (uint32) {
+        Uint32Param storage avl = _epochConsensusParams.activeValidatorLength;
+        return _getUint32Value(avl, epoch);
     }
 
     function initActiveValidatorLengthEpochParam(uint64[] memory epochs, uint32[] memory lengths) public {
@@ -167,32 +142,7 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
 
     function getMisdemeanorThreshold(uint64 epoch) external view returns (uint32) {
         Uint32Param storage mt = _epochConsensusParams.misdemeanorThreshold;
-
-        if (mt.value[epoch] > 0) {
-            return mt.value[epoch];
-        } else {
-            uint256 epochsLen = mt.epochs.length;
-            uint64 lastAvailableEpoch = mt.epochs[epochsLen - 1];
-            // If we don't have the value for the epoch, return the lastAvailable epoch value if possible.
-            // (actually, epoch == lastAvailableEpoch case should be covered by the if statement above, but whatever..)
-            if (epoch >= lastAvailableEpoch) {
-                return mt.value[lastAvailableEpoch];
-            } else {
-                // If we don't have the value for the epoch and epoch < lastAvailable
-                // binary search to find the closest epoch
-                uint256 left = 0;
-                uint256 right = epochsLen;
-                while (left < right) {
-                     uint256 mid = left + (right - left) / 2;
-                     if (mt.epochs[mid] <= epoch) {
-                         left = mid + 1;
-                     } else {
-                         right = mid;
-                     }
-                }
-                return mt.value[mt.epochs[left-1]];
-            }
-        }
+        return _getUint32Value(mt, epoch);
     }
 
     function setMisdemeanorThreshold(uint32 newValue) external override onlyFromGovernance {
@@ -254,5 +204,33 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         uint256 prevValue = _consensusParams.minStakingAmount;
         _consensusParams.minStakingAmount = newValue;
         emit MinStakingAmountChanged(prevValue, newValue);
+    }
+
+    function _getUint32Value(Uint32Param storage param, uint64 epoch) internal view returns (uint32) {
+        if (param.value[epoch] > 0) {
+            return param.value[epoch];
+        } else {
+            uint256 epochsLen = param.epochs.length;
+            uint64 lastAvailableEpoch = param.epochs[epochsLen - 1];
+            // If we don't have the value for the epoch, return the lastAvailable epoch value if possible.
+            // (actually, epoch == lastAvailableEpoch case should be covered by the if statement above, but whatever..)
+            if (epoch >= lastAvailableEpoch) {
+                return param.value[lastAvailableEpoch];
+            } else {
+                // If we don't have the value for the epoch and epoch < lastAvailable
+                // binary search to find the closest epoch
+                uint256 left = 0;
+                uint256 right = epochsLen;
+                while (left < right) {
+                     uint256 mid = left + (right - left) / 2;
+                     if (param.epochs[mid] <= epoch) {
+                         left = mid + 1;
+                     } else {
+                         right = mid;
+                     }
+                }
+                return param.value[param.epochs[left-1]];
+            }
+        }
     }
 }
