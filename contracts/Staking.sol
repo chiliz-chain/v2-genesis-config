@@ -460,7 +460,7 @@ contract Staking is IStaking, InjectorContextHolder {
                 if (validatorSnapshot.totalDelegated == 0) {
                     continue;
                 }
-                (uint256 delegatorFee, /*uint256 ownerFee*/, /*uint256 systemFee*/) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
+                (uint256 delegatorFee, /*uint256 ownerFee*/, /*uint256 systemFee*/) = _calcValidatorSnapshotEpochPayout(validatorSnapshot, delegateOp.epoch);
                 availableFunds += delegatorFee * delegateOp.amount / validatorSnapshot.totalDelegated;
             }
             // if we have reached end of the delegation list then lets stay on the last item, but with updated latest processed epoch
@@ -515,7 +515,7 @@ contract Staking is IStaking, InjectorContextHolder {
                 if (validatorSnapshot.totalDelegated == 0) {
                     continue;
                 }
-                (uint256 delegatorFee, /*uint256 ownerFee*/, /*uint256 systemFee*/) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
+                (uint256 delegatorFee, /*uint256 ownerFee*/, /*uint256 systemFee*/) = _calcValidatorSnapshotEpochPayout(validatorSnapshot, delegateOp.epoch);
                 availableFunds += delegatorFee * delegateOp.amount / validatorSnapshot.totalDelegated;
             }
             ++delegation.delegateGap;
@@ -539,7 +539,7 @@ contract Staking is IStaking, InjectorContextHolder {
         uint64 claimAt = validator.claimedAt;
         for (; claimAt < beforeEpoch; claimAt++) {
             ValidatorSnapshot memory validatorSnapshot = _validatorSnapshots[validator.validatorAddress][claimAt];
-            (/*uint256 delegatorFee*/, uint256 ownerFee, uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
+            (/*uint256 delegatorFee*/, uint256 ownerFee, uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot, claimAt);
             availableFunds += ownerFee;
             systemFee += slashingFee;
         }
@@ -554,15 +554,15 @@ contract Staking is IStaking, InjectorContextHolder {
         uint256 availableFunds = 0;
         for (; validator.claimedAt < beforeEpoch; validator.claimedAt++) {
             ValidatorSnapshot memory validatorSnapshot = _validatorSnapshots[validator.validatorAddress][validator.claimedAt];
-            (/*uint256 delegatorFee*/, uint256 ownerFee, /*uint256 systemFee*/) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
+            (/*uint256 delegatorFee*/, uint256 ownerFee, /*uint256 systemFee*/) = _calcValidatorSnapshotEpochPayout(validatorSnapshot, validator.claimedAt);
             availableFunds += ownerFee;
         }
         return availableFunds;
     }
 
-    function _calcValidatorSnapshotEpochPayout(ValidatorSnapshot memory validatorSnapshot) internal view returns (uint256 delegatorFee, uint256 ownerFee, uint256 systemFee) {
+    function _calcValidatorSnapshotEpochPayout(ValidatorSnapshot memory validatorSnapshot, uint64 epoch) internal view returns (uint256 delegatorFee, uint256 ownerFee, uint256 systemFee) {
         // detect validator slashing to transfer all rewards to treasury
-        if (validatorSnapshot.slashesCount >= _chainConfigContract.getMisdemeanorThreshold()) {
+        if (validatorSnapshot.slashesCount >= _chainConfigContract.getMisdemeanorThreshold(epoch)) {
             return (delegatorFee = 0, ownerFee = 0, systemFee = validatorSnapshot.totalRewards);
         } else if (validatorSnapshot.totalDelegated == 0) {
             return (delegatorFee = 0, ownerFee = validatorSnapshot.totalRewards, systemFee = 0);
