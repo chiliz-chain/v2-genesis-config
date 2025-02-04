@@ -118,10 +118,9 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         EpochToValue storage avl = _epochConsensusParams.activeValidatorLength;
 
         // set new value for next epoch
+        uint32 prevValue = _getUint32Value(avl, _stakingContract.currentEpoch());
         uint64 nextEpoch = _stakingContract.nextEpoch();
-        uint32 prevValue = avl.value[avl.epochs[avl.epochs.length - 1]];
-        avl.value[nextEpoch] = newValue;
-        avl.epochs.push(nextEpoch);
+        _setUint32Value(avl, newValue);
         emit ActiveValidatorsLengthChanged(prevValue, newValue, nextEpoch);
     }
 
@@ -149,10 +148,9 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         Uint32Param storage mt = _epochConsensusParams.misdemeanorThreshold;
 
         // set new value for next epoch
+        uint32 prevValue = _getUint32Value(mt, _stakingContract.currentEpoch());
         uint64 nextEpoch = _stakingContract.nextEpoch();
-        uint32 prevValue = mt.value[mt.epochs[mt.epochs.length - 1]];
-        mt.value[nextEpoch] = newValue;
-        mt.epochs.push(nextEpoch);
+        _setUint32Value(mt, newValue);
         emit MisdemeanorThresholdChanged(prevValue, newValue, nextEpoch);
     }
 
@@ -232,5 +230,11 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
                 return param.value[param.epochs[left-1]];
             }
         }
+    }
+
+    function _setUint32Value(Uint32Param storage param, uint32 value) internal {
+        uint64 nextEpoch = _stakingContract.nextEpoch();
+        param.value[nextEpoch] = value;
+        param.epochs.push(nextEpoch);
     }
 }
