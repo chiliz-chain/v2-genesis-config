@@ -81,9 +81,9 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         return getActiveValidatorsLength(_stakingContract.currentEpoch());
     }
 
-    function getActiveValidatorsLength(uint64 epoch) external view returns (uint32) {
-        Uint32Param storage avl = _epochConsensusParams.activeValidatorLength;
-        return _getUint32Value(avl, epoch);
+    function getActiveValidatorsLength(uint64 epoch) public view returns (uint32) {
+        EpochToValue storage avl = _epochConsensusParams.activeValidatorLength;
+        return _getValue(avl, epoch);
     }
 
     function initActiveValidatorLengthEpochParam(uint64[] memory epochs, uint32[] memory lengths) public {
@@ -103,7 +103,7 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
     function initMisdemeanorThresholdParam(uint64[] memory epochs, uint32[] memory thresholds) public {
         require(epochs.length == thresholds.length, "IA"); // invalid arguments
 
-        Uint32Param storage mt = _epochConsensusParams.misdemeanorThreshold;
+        EpochToValue storage mt = _epochConsensusParams.misdemeanorThreshold;
         require(mt.epochs.length == 0, "AI"); // already initialized
 
         uint256 len = epochs.length;
@@ -118,9 +118,9 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         EpochToValue storage avl = _epochConsensusParams.activeValidatorLength;
 
         // set new value for next epoch
-        uint32 prevValue = _getUint32Value(avl, _stakingContract.currentEpoch());
+        uint32 prevValue = _getValue(avl, _stakingContract.currentEpoch());
         uint64 nextEpoch = _stakingContract.nextEpoch();
-        _setUint32Value(avl, newValue);
+        _setValue(avl, newValue);
         emit ActiveValidatorsLengthChanged(prevValue, newValue, nextEpoch);
     }
 
@@ -140,17 +140,17 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
     }
 
     function getMisdemeanorThreshold(uint64 epoch) external view returns (uint32) {
-        Uint32Param storage mt = _epochConsensusParams.misdemeanorThreshold;
-        return _getUint32Value(mt, epoch);
+        EpochToValue storage mt = _epochConsensusParams.misdemeanorThreshold;
+        return _getValue(mt, epoch);
     }
 
     function setMisdemeanorThreshold(uint32 newValue) external override onlyFromGovernance {
-        Uint32Param storage mt = _epochConsensusParams.misdemeanorThreshold;
+        EpochToValue storage mt = _epochConsensusParams.misdemeanorThreshold;
 
         // set new value for next epoch
-        uint32 prevValue = _getUint32Value(mt, _stakingContract.currentEpoch());
+        uint32 prevValue = _getValue(mt, _stakingContract.currentEpoch());
         uint64 nextEpoch = _stakingContract.nextEpoch();
-        _setUint32Value(mt, newValue);
+        _setValue(mt, newValue);
         emit MisdemeanorThresholdChanged(prevValue, newValue, nextEpoch);
     }
 
@@ -204,7 +204,7 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         emit MinStakingAmountChanged(prevValue, newValue);
     }
 
-    function _getUint32Value(Uint32Param storage param, uint64 epoch) internal view returns (uint32) {
+    function _getValue(EpochToValue storage param, uint64 epoch) internal view returns (uint32) {
         if (param.value[epoch] > 0) {
             return param.value[epoch];
         } else {
@@ -232,7 +232,7 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         }
     }
 
-    function _setUint32Value(Uint32Param storage param, uint32 value) internal {
+    function _setValue(EpochToValue storage param, uint32 value) internal {
         uint64 nextEpoch = _stakingContract.nextEpoch();
         param.value[nextEpoch] = value;
         param.epochs.push(nextEpoch);
