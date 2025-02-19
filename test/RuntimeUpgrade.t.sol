@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 import "../contracts/interfaces/IChainConfig.sol";
 import "../contracts/interfaces/IGovernance.sol";
@@ -17,17 +18,32 @@ import "../contracts/interfaces/IDeployerProxy.sol";
 import "../contracts/interfaces/ITokenomics.sol";
 
 import {RuntimeUpgrade} from "../contracts/RuntimeUpgrade.sol";
-import {FakeRuntimeUpgradeEvmHook} from "../contracts/tests/FakeRuntimeUpgradeEvmHook.sol";
 import {ChainConfig} from "../contracts/ChainConfig.sol";
 
-contract DummyContract {
-    event DummyEvent();
-    function dummyFunction() public {
-        emit DummyEvent();
-    }
+contract FakeRuntimeUpgradeEvmHook is IRuntimeUpgradeEvmHook {
+    address internal constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
+    Vm internal constant vm = Vm(VM_ADDRESS);
 
+    event Upgraded(address contractAddress, bytes byteCode);
+
+    function upgradeTo(address contractAddress, bytes calldata byteCode) external override {
+        vm.etch(contractAddress, byteCode);
+        emit Upgraded(contractAddress, byteCode);
+    }
+}
+
+contract DummyContract {
+    uint8 public dummyValue = 5;
     function isInitialized() public pure returns (bool) {
         return true;
+    }
+}
+
+contract DummyContract1 is DummyContract{
+    event DummyEvent();
+    function dummyFunction() public {
+        dummyValue += 3;
+        emit DummyEvent();
     }
 }
 
@@ -96,11 +112,14 @@ contract RuntimeUpgradeTest is Test {
 
     /// @notice we're using DummyContract as StakingContract
     function test_upgradeSystemSmartContract_ApplyFunctionGetsCalledAfterUpgrade() public {
-        // upgrade dummy contract and make sure the 'applyFunction' gets called
-        // by checking the emitted event from the function
+        assertEq(dummyContract.dummyValue(), 5);
+
+        // upgrade DummyContract to DummyContract1 and make sure the 'applyFunction' gets called
+        // by checking the emitted event from the function & the state variable
         vm.expectEmit(true, true, true, true);
-        emit DummyContract.DummyEvent();
+        emit DummyContract1.DummyEvent();
         vm.prank(vm.addr(20));
-        runtimeUpgrade.upgradeSystemSmartContract(address(dummyContract), type(DummyContract).creationCode, abi.encodeWithSignature("dummyFunction()"));
+        runtimeUpgrade.upgradeSystemSmartContract(address(dummyContract), vm.getDeployedCode("DummyContract1"), abi.encodeWithSignature("dummyFunction()"));
+        assertEq(dummyContract.dummyValue(), 8);
     }
 }
