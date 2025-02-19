@@ -21,11 +21,11 @@ import {RuntimeUpgrade} from "../contracts/RuntimeUpgrade.sol";
 import {ChainConfig} from "../contracts/ChainConfig.sol";
 
 contract FakeRuntimeUpgradeEvmHook is IRuntimeUpgradeEvmHook {
-    address internal constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
-    Vm internal constant vm = Vm(VM_ADDRESS);
-
+    Vm internal vm;
     event Upgraded(address contractAddress, bytes byteCode);
-
+    constructor(Vm _vm) {
+        vm = _vm;
+    }
     function upgradeTo(address contractAddress, bytes calldata byteCode) external override {
         vm.etch(contractAddress, byteCode);
         emit Upgraded(contractAddress, byteCode);
@@ -68,7 +68,7 @@ contract RuntimeUpgradeTest is Test {
         );
         chainConfig = new ChainConfig(ctorChainConfig);
 
-        FakeRuntimeUpgradeEvmHook fakeRuntimeUpgradeEvmHook = new FakeRuntimeUpgradeEvmHook();
+        FakeRuntimeUpgradeEvmHook fakeRuntimeUpgradeEvmHook = new FakeRuntimeUpgradeEvmHook(vm);
 
         bytes memory ctorRuntimeUpgrade = abi.encodeWithSignature("ctor(address)", address(fakeRuntimeUpgradeEvmHook));
         runtimeUpgrade = new RuntimeUpgrade(ctorRuntimeUpgrade);
