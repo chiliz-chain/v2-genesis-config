@@ -172,4 +172,41 @@ contract StakingSherlock66 is Test {
         assertEq(avl[3], val4);
         assertEq(avl[4], val5);
     }
+
+    function test_slash() public {
+        address val1 = vm.addr(1);
+        address val2 = vm.addr(2);
+        address val3 = vm.addr(3);
+        address val4 = vm.addr(4);
+        vm.startPrank(vm.addr(20));
+        staking.addValidator(val2);
+        staking.addValidator(val3);
+        staking.addValidator(val4);
+        vm.stopPrank();
+
+        // go to epoch 1 & jail one validator
+        vm.roll(block.number + EPOCH_LEN);
+        for (uint8 i = 0; i < 74; i++) {
+            vm.prank(vm.addr(20));
+            staking.slash(val3);
+        }
+        // slash again to jail it
+        vm.prank(vm.addr(20));
+        staking.slash(val3);
+
+        // at epoch 1 we should have 4 validators
+        address[] memory avl = staking.getActiveValidatorsList(1);
+        assertEq(avl.length, 4);
+        assertEq(avl[0], val1);
+        assertEq(avl[1], val2);
+        assertEq(avl[2], val3);
+        assertEq(avl[3], val4);
+
+        // at epoch 2 we should have 3 validators
+        avl = staking.getActiveValidatorsList(2);
+        assertEq(avl.length, 3);
+        assertEq(avl[0], val1);
+        assertEq(avl[1], val2);
+        assertEq(avl[2], val4);
+    }
 }
