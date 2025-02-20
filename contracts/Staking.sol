@@ -107,6 +107,13 @@ contract Staking is IStaking, InjectorContextHolder {
         uint64 undelegateGap;
     }
 
+    struct EpochToActiveValidatorsList {
+        // (epoch => list of active validators)
+        mapping(uint64 => address[]) value;
+        // list of available epochs, sorted in asc order.
+        uint64[] epochs;
+    }
+
     // mapping from validator address to validator
     mapping(address => Validator) internal _validatorsMap;
     // mapping from validator owner to validator address
@@ -119,6 +126,8 @@ contract Staking is IStaking, InjectorContextHolder {
     mapping(address => mapping(uint64 => ValidatorSnapshot)) internal _validatorSnapshots;
 
     bool internal _paused;
+
+    EpochToActiveValidatorsList internal _activeValidatorsListPerEpoch;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
@@ -539,7 +548,7 @@ contract Staking is IStaking, InjectorContextHolder {
         _validatorOwners[validatorOwner] = validatorAddress;
         // add new validator to array
         if (status == ValidatorStatus.Active) {
-            _activeValidatorsList.push(validatorAddress);
+            _addValidatorToActiveValidatorsList(validatorAddress, sinceEpoch);
         }
         // push initial validator snapshot at zero epoch with default params
         _validatorSnapshots[validatorAddress][sinceEpoch] = ValidatorSnapshot(0, _packCompact(initialStake), 0, commissionRate);
@@ -549,6 +558,50 @@ contract Staking is IStaking, InjectorContextHolder {
         _createOpDelegate(delegation.delegateQueue,sinceEpoch, _packCompact(initialStake));
         // emit event
         emit ValidatorAdded(validatorAddress, validatorOwner, uint8(status), commissionRate);
+    }
+
+    function _addValidatorToActiveValidatorsList(address validatorAddress, uint64 epoch) internal {
+        if (epoch == 0) {
+            _activeValidatorsListPerEpoch.value[epoch].push(validatorAddress);
+            _activeValidatorsListPerEpoch.epochs.push(epoch);
+        } else if (_activeValidatorsListPerEpoch.value[epoch].length == 0 && _activeValidatorsListPerEpoch.epochs.length > 0) {
+            // copy the last known list
+            uint64 lastKnownEpoch = _activeValidatorsListPerEpoch.epochs[_activeValidatorsListPerEpoch.epochs.length-1];
+            _activeValidatorsListPerEpoch.value[epoch] = _activeValidatorsListPerEpoch.value[lastKnownEpoch];
+
+            _activeValidatorsListPerEpoch.value[epoch].push(validatorAddress);
+            _activeValidatorsListPerEpoch.epochs.push(epoch);
+        } else{
+            _activeValidatorsListPerEpoch.value[epoch].push(validatorAddress);
+        }
+    }
+
+    function getActiveValidatorsList(uint64 epoch) public view returns (address[] memory) {
+        if (_activeValidatorsListPerEpoch.value[epoch].length > 0) {
+            return _activeValidatorsListPerEpoch.value[epoch];
+        } else {
+            uint256 epochsLen = _activeValidatorsListPerEpoch.epochs.length;
+            uint64 lastAvailableEpoch = _activeValidatorsListPerEpoch.epochs[epochsLen - 1];
+            // If we don't have the value for the epoch, return the lastAvailable epoch value if possible.
+            // (actually, epoch == lastAvailableEpoch case should be covered by the if statement above, but whatever..)
+            if (epoch >= lastAvailableEpoch) {
+                return _activeValidatorsListPerEpoch.value[lastAvailableEpoch];
+            } else {
+                // If we don't have the value for the epoch and epoch < lastAvailable
+                // binary search to find the closest epoch
+                uint256 left = 0;
+                uint256 right = epochsLen;
+                while (left < right) {
+                     uint256 mid = left + (right - left) / 2;
+                     if (_activeValidatorsListPerEpoch.epochs[mid] <= epoch) {
+                         left = mid + 1;
+                     } else {
+                         right = mid;
+                     }
+                }
+                return _activeValidatorsListPerEpoch.value[_activeValidatorsListPerEpoch.epochs[left-1]];
+            }
+        }
     }
 
     function removeValidator(address account) external onlyFromGovernance virtual override {
