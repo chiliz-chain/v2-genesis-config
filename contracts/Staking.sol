@@ -665,19 +665,21 @@ contract Staking is IStaking, InjectorContextHolder {
     }
 
     function _removeValidatorFromActiveList(address validatorAddress) internal {
-        // find index of validator in validator set
-        int256 indexOf = - 1;
-        for (uint256 i = 0; i < _activeValidatorsList.length; i++) {
-            if (_activeValidatorsList[i] != validatorAddress) continue;
-            indexOf = int256(i);
-            break;
+        // if the list doesn't exist for next epoch, copy over the last known list
+        uint64 ne = _nextEpoch();
+        if (_activeValidatorsListPerEpoch.value[ne].length == 0) {
+            uint64 lastKnownEpoch = _activeValidatorsListPerEpoch.epochs[_activeValidatorsListPerEpoch.epochs.length - 1];
+            _activeValidatorsListPerEpoch.value[ne] = _activeValidatorsListPerEpoch.value[lastKnownEpoch];
+            _activeValidatorsListPerEpoch.epochs.push(ne);
         }
+
         // remove validator from array (since we remove only active it might not exist in the list)
-        if (indexOf >= 0) {
-            if (_activeValidatorsList.length > 1 && uint256(indexOf) != _activeValidatorsList.length - 1) {
-                _activeValidatorsList[uint256(indexOf)] = _activeValidatorsList[_activeValidatorsList.length - 1];
-            }
-            _activeValidatorsList.pop();
+        address[] storage avl = _activeValidatorsListPerEpoch.value[ne];
+        for (uint256 i = 0; i < avl.length; i++) {
+            if (avl[i] != validatorAddress) continue;
+            avl[i] = avl[avl.length - 1];
+            avl.pop();
+            return;
         }
     }
 
