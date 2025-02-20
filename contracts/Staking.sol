@@ -706,7 +706,7 @@ contract Staking is IStaking, InjectorContextHolder {
     function _activateValidator(address validatorAddress) internal {
         Validator memory validator = _validatorsMap[validatorAddress];
         require(_validatorsMap[validatorAddress].status == ValidatorStatus.Pending, "np"); // not pending
-        _activeValidatorsList.push(validatorAddress);
+        _addValidatorToActiveValidatorsList(validatorAddress, _nextEpoch());
         validator.status = ValidatorStatus.Active;
         ValidatorSnapshot storage snapshot = _touchValidatorSnapshot(validator, _nextEpoch());
         _validatorsMap[validatorAddress] = validator;

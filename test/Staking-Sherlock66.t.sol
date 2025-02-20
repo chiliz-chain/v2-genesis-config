@@ -122,10 +122,7 @@ contract StakingSherlock66 is Test {
         vm.roll(block.number + EPOCH_LEN);
 
         vm.prank(vm.addr(20));
-        vm.startSnapshotGas("A");
         staking.removeValidator(val3);
-        uint256 gasUsed = vm.stopSnapshotGas();
-        console.log("gasUsed: ", gasUsed);
 
         // at epoch 1 we should have 4 validators
         address[] memory avl = staking.getActiveValidatorsList(1);
@@ -141,5 +138,38 @@ contract StakingSherlock66 is Test {
         assertEq(avl[0], val1);
         assertEq(avl[1], val2);
         assertEq(avl[2], val4);
+    }
+
+    function test_activateValidator() public {
+        address val1 = vm.addr(1);
+        address val2 = vm.addr(2);
+        address val3 = vm.addr(3);
+        address val4 = vm.addr(4);
+        vm.startPrank(vm.addr(20));
+        staking.addValidator(val2);
+        staking.addValidator(val3);
+        staking.addValidator(val4);
+        vm.stopPrank();
+
+        address val5 = vm.addr(5);
+        vm.prank(vm.addr(20));
+        staking.registerValidator(val5, 0);
+
+        vm.prank(vm.addr(20));
+        staking.activateValidator(val5);
+
+        // at epoch 0 we should only have 1 validator
+        address[] memory avl = staking.getActiveValidatorsList(0);
+        assertEq(avl.length, 1);
+        assertEq(avl[0], val1);
+
+        // at epoch 1 we should have 5 validators
+        avl = staking.getActiveValidatorsList(1);
+        assertEq(avl.length, 5);
+        assertEq(avl[0], val1);
+        assertEq(avl[1], val2);
+        assertEq(avl[2], val3);
+        assertEq(avl[3], val4);
+        assertEq(avl[4], val5);
     }
 }
