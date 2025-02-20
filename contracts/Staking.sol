@@ -220,7 +220,7 @@ contract Staking is IStaking, InjectorContextHolder {
         // update validator status
         validator.status = ValidatorStatus.Active;
         _validatorsMap[validatorAddress] = validator;
-        _activeValidatorsList.push(validatorAddress);
+        _addValidatorToActiveValidatorsList(validatorAddress, _nextEpoch());
         // emit event
         emit ValidatorReleased(validatorAddress, _currentEpoch());
     }
