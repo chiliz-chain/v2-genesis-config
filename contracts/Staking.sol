@@ -714,10 +714,11 @@ contract Staking is IStaking, InjectorContextHolder {
     }
 
     function _getValidators(uint64 epoch) internal view returns (address[] memory) {
-        uint256 n = _activeValidatorsList.length;
+        address[] memory avl = getActiveValidatorsList(epoch);
+        uint256 n = avl.length;
         address[] memory orderedValidators = new address[](n);
         for (uint256 i = 0; i < n; i++) {
-            orderedValidators[i] = _activeValidatorsList[i];
+            orderedValidators[i] = avl[i];
         }
         // we need to select k top validators out of n
         uint256 k = _chainConfigContract.getActiveValidatorsLength(epoch);
