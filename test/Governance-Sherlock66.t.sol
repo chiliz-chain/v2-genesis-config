@@ -121,4 +121,25 @@ contract GovernanceSherlock66 is Test {
         assertEq(governance.quorum(block.number - EPOCH_LEN), initialQuorum);
         assertEq(governance.quorum(block.number), newQuorum);
     }
+
+    function test_quorum_afterUnjail() public {
+        uint256 initialQuorum = (90e18) * 2/3;
+        assertEq(governance.quorum(block.number), initialQuorum);
+
+        // jail validator1 in epoch 5
+        vm.roll(block.number + EPOCH_LEN*5);
+        for (uint8 i = 0; i < 80; i++) {
+            vm.prank(vm.addr(20));
+            staking.slash(vm.addr(5));
+        }
+        (,uint8 status,,,,,,,) = staking.getValidatorStatus(vm.addr(5));
+        assertEq(status, uint8(3));
+
+        uint256 newQuorum = (60e18) * 2/uint256(3);
+        // quorum at old block should remain as it was before
+        // quorum at new block should change
+        assertEq(governance.quorum(block.number - EPOCH_LEN*5), initialQuorum); // fails here cause activeValidatorsList comes from current epoch
+        assertEq(governance.quorum(block.number), initialQuorum);
+        assertEq(governance.quorum(block.number+EPOCH_LEN), newQuorum);
+    }
 }
