@@ -24,6 +24,7 @@ contract StakingSherlock66 is Test {
     ChainConfig public chainConfig;
 
     uint16 public constant EPOCH_LEN = 100;
+    uint256 public constant MAX_VALIDATORS = 102;
 
     function setUp() public {
         bytes memory ctorChainConfig = abi.encodeWithSignature(
@@ -79,181 +80,152 @@ contract StakingSherlock66 is Test {
             deployerProxyContract,
             tokenomicsContract
         );
+
+        // Add a bunch of validators for epoch 1
+        vm.startPrank(vm.addr(20));
+        for (uint256 i = 2; i <= MAX_VALIDATORS; i++) {
+            staking.addValidator(vm.addr(i));
+        }
+        vm.stopPrank();
     }
 
     function test_addValidator() public {
-        address val1 = vm.addr(1);
-
-        address val2 = vm.addr(2);
-        address val3 = vm.addr(3);
-        address val4 = vm.addr(4);
-        vm.startPrank(vm.addr(20));
-        staking.addValidator(val2);
-        staking.addValidator(val3);
-        staking.addValidator(val4);
-        vm.stopPrank();
-
         // at epoch 0 we should only have 1 validator
         address[] memory avl = staking.getActiveValidatorsList(0);
         assertEq(avl.length, 1);
-        assertEq(avl[0], val1);
+        assertEq(avl[0], vm.addr(1));
 
-        // at epoch 1 we should have 4 validators
+        // at epoch 1 we should have `MAX_VALIDATORS` validators
         avl = staking.getActiveValidatorsList(1);
-        assertEq(avl.length, 4);
-        assertEq(avl[0], val1);
-        assertEq(avl[1], val2);
-        assertEq(avl[2], val3);
-        assertEq(avl[3], val4);
+        assertEq(avl.length, MAX_VALIDATORS);
+        for (uint256 i = 0; i < avl.length; i++) {
+            assertEq(avl[i], vm.addr(i+1));
+        }
     }
 
     function test_removeValidator() public {
-        address val1 = vm.addr(1);
-        address val2 = vm.addr(2);
-        address val3 = vm.addr(3);
-        address val4 = vm.addr(4);
-        vm.startPrank(vm.addr(20));
-        staking.addValidator(val2);
-        staking.addValidator(val3);
-        staking.addValidator(val4);
-        vm.stopPrank();
-
         // go to epoch 1 & remove one validator
         vm.roll(block.number + EPOCH_LEN);
-
         vm.prank(vm.addr(20));
-        staking.removeValidator(val3);
-
-        // at epoch 1 we should have 4 validators
-        address[] memory avl = staking.getActiveValidatorsList(1);
-        assertEq(avl.length, 4);
-        assertEq(avl[0], val1);
-        assertEq(avl[1], val2);
-        assertEq(avl[2], val3);
-        assertEq(avl[3], val4);
-
-        // at epoch 2 we should have 3 validators
-        avl = staking.getActiveValidatorsList(2);
-        assertEq(avl.length, 3);
-        assertEq(avl[0], val1);
-        assertEq(avl[1], val2);
-        assertEq(avl[2], val4);
-    }
-
-    function test_activateValidator() public {
-        address val1 = vm.addr(1);
-        address val2 = vm.addr(2);
-        address val3 = vm.addr(3);
-        address val4 = vm.addr(4);
-        vm.startPrank(vm.addr(20));
-        staking.addValidator(val2);
-        staking.addValidator(val3);
-        staking.addValidator(val4);
-        vm.stopPrank();
-
-        address val5 = vm.addr(5);
-        vm.prank(vm.addr(20));
-        staking.registerValidator(val5, 0);
-
-        vm.prank(vm.addr(20));
-        staking.activateValidator(val5);
+        staking.removeValidator(vm.addr(MAX_VALIDATORS/2));
 
         // at epoch 0 we should only have 1 validator
         address[] memory avl = staking.getActiveValidatorsList(0);
         assertEq(avl.length, 1);
-        assertEq(avl[0], val1);
+        assertEq(avl[0], vm.addr(1));
 
-        // at epoch 1 we should have 5 validators
+        // at epoch 1 we should have `MAX_VALIDATORS` validators
         avl = staking.getActiveValidatorsList(1);
-        assertEq(avl.length, 5);
-        assertEq(avl[0], val1);
-        assertEq(avl[1], val2);
-        assertEq(avl[2], val3);
-        assertEq(avl[3], val4);
-        assertEq(avl[4], val5);
+        assertEq(avl.length, MAX_VALIDATORS);
+        // at epoch 2 we should have `MAX_VALIDATORS-1` validators
+        avl = staking.getActiveValidatorsList(2);
+        assertEq(avl.length, MAX_VALIDATORS-1);
+        for (uint256 i = 0; i < avl.length; i++) {
+            if (i + 1 == MAX_VALIDATORS/2) {
+                i++; // skip the removed validator
+            }
+            assertEq(avl[i], vm.addr(i+1));
+        }
+    }
+
+    function test_activateValidator() public {
+        vm.prank(vm.addr(MAX_VALIDATORS+1));
+        staking.registerValidator(vm.addr(MAX_VALIDATORS+1), 0);
+
+        vm.prank(vm.addr(20));
+        staking.activateValidator(vm.addr(MAX_VALIDATORS+1));
+
+        // at epoch 0 we should only have 1 validator
+        address[] memory avl = staking.getActiveValidatorsList(0);
+        assertEq(avl.length, 1);
+        assertEq(avl[0], vm.addr(1));
+
+        // at epoch 1 we should have `MAX_VALIDATORS+1` validators
+        avl = staking.getActiveValidatorsList(1);
+        assertEq(avl.length, MAX_VALIDATORS+1);
+        for (uint256 i = 0; i < avl.length; i++) {
+            assertEq(avl[i], vm.addr(i+1));
+        }
     }
 
     function test_slash() public {
-        address val1 = vm.addr(1);
-        address val2 = vm.addr(2);
-        address val3 = vm.addr(3);
-        address val4 = vm.addr(4);
-        vm.startPrank(vm.addr(20));
-        staking.addValidator(val2);
-        staking.addValidator(val3);
-        staking.addValidator(val4);
-        vm.stopPrank();
-
         // go to epoch 1 & jail one validator
         vm.roll(block.number + EPOCH_LEN);
+        vm.startPrank(vm.addr(20));
         for (uint8 i = 0; i < 74; i++) {
-            vm.prank(vm.addr(20));
-            staking.slash(val3);
+            staking.slash(vm.addr(MAX_VALIDATORS/2));
         }
         // slash again to jail it
-        vm.prank(vm.addr(20));
-        staking.slash(val3);
+        staking.slash(vm.addr(MAX_VALIDATORS/2));
+        vm.stopPrank();
 
-        // at epoch 1 we should have 4 validators
-        address[] memory avl = staking.getActiveValidatorsList(1);
-        assertEq(avl.length, 4);
-        assertEq(avl[0], val1);
-        assertEq(avl[1], val2);
-        assertEq(avl[2], val3);
-        assertEq(avl[3], val4);
+        // at epoch 0 we should only have 1 validator
+        address[] memory avl = staking.getActiveValidatorsList(0);
+        assertEq(avl.length, 1);
+        assertEq(avl[0], vm.addr(1));
 
-        // at epoch 2 we should have 3 validators
+        // at epoch 1 we should have `MAX_VALIDATORS` validators
+        avl = staking.getActiveValidatorsList(1);
+        assertEq(avl.length, MAX_VALIDATORS);
+        // at epoch 2 we should have `MAX_VALIDATORS-1` validators
         avl = staking.getActiveValidatorsList(2);
-        assertEq(avl.length, 3);
-        assertEq(avl[0], val1);
-        assertEq(avl[1], val2);
-        assertEq(avl[2], val4);
+        assertEq(avl.length, MAX_VALIDATORS-1);
+        for (uint256 i = 0; i < avl.length; i++) {
+            if (i + 1 == MAX_VALIDATORS/2) {
+                i++; // skip the removed validator
+            }
+            assertEq(avl[i], vm.addr(i+1));
+        }
     }
 
     function test_releaseValidatorFromJail() public {
-        address val1 = vm.addr(1);
-        address val2 = vm.addr(2);
-        address val3 = vm.addr(3);
-        address val4 = vm.addr(4);
-        vm.startPrank(vm.addr(20));
-        staking.addValidator(val2);
-        staking.addValidator(val3);
-        staking.addValidator(val4);
-        vm.stopPrank();
-
         // go to epoch 1 & jail one validator
         vm.roll(block.number + EPOCH_LEN);
-        for (uint8 i = 0; i < 75; i++) {
-            vm.prank(vm.addr(20));
-            staking.slash(val3);
+        vm.startPrank(vm.addr(20));
+        for (uint8 i = 0; i < 74; i++) {
+            staking.slash(vm.addr(MAX_VALIDATORS/2));
+        }
+        // slash again to jail it for epoch 2
+        staking.slash(vm.addr(MAX_VALIDATORS/2));
+        vm.stopPrank();
+
+        // go to epoch 2 & release it for epoch 3
+        vm.roll(block.number + EPOCH_LEN);
+        vm.prank(vm.addr(MAX_VALIDATORS/2));
+        staking.releaseValidatorFromJail(vm.addr(MAX_VALIDATORS/2));
+
+        // at epoch 0 we should only have 1 validator
+        address[] memory avl = staking.getActiveValidatorsList(0);
+        assertEq(avl.length, 1);
+        assertEq(avl[0], vm.addr(1));
+
+        // at epoch 1 we should have `MAX_VALIDATORS` validators
+        avl = staking.getActiveValidatorsList(1);
+        assertEq(avl.length, MAX_VALIDATORS);
+        // at epoch 2 we should have `MAX_VALIDATORS-1` validators
+        avl = staking.getActiveValidatorsList(2);
+        assertEq(avl.length, MAX_VALIDATORS-1);
+        for (uint256 i = 0; i < avl.length; i++) {
+            if (i + 1 == MAX_VALIDATORS/2) {
+                i++; // skip the removed validator
+            }
+            assertEq(avl[i], vm.addr(i+1));
         }
 
-        // go to epoch 2 & release it
-        vm.roll(block.number + EPOCH_LEN);
-        vm.prank(val3);
-        staking.releaseValidatorFromJail(val3);
-
-        // at epoch 1 we should have 4 validators
-        address[] memory avl = staking.getActiveValidatorsList(1);
-        assertEq(avl.length, 4);
-        assertEq(avl[0], val1);
-        assertEq(avl[1], val2);
-        assertEq(avl[2], val3);
-        assertEq(avl[3], val4);
-
-        // at epoch 2 we should have 3 validators
-        avl = staking.getActiveValidatorsList(2);
-        assertEq(avl.length, 3);
-        assertEq(avl[0], val1);
-        assertEq(avl[1], val2);
-        assertEq(avl[2], val4);
-
-        // at epoch 3 we should have 4 validators again
+        // at epoch 3 we should have `MAX_VALIDATORS` validators again
         avl = staking.getActiveValidatorsList(3);
-        assertEq(avl.length, 4);
-        assertEq(avl[0], val1);
-        assertEq(avl[1], val2);
-        assertEq(avl[2], val4);
-        assertEq(avl[3], val3);
+        assertEq(avl.length, MAX_VALIDATORS);
+        for (uint256 i = 0; i < avl.length; i++) {
+            // the unjailed validator will be added at the end of the list
+            // that's why we need to skip the address at it's original position (if block)
+            // and check the last element (else if block)
+            if (i + 1 == MAX_VALIDATORS/2) {
+                i++; // skip the removed validator
+            } else if (i == avl.length - 1) {
+                assertEq(avl[i], vm.addr(MAX_VALIDATORS/2));
+            } else {
+                assertEq(avl[i], vm.addr(i+1));
+            }
+        }
     }
 }
