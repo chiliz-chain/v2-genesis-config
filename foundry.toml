@@ -1,0 +1,14 @@
+[profile.default]
+src = "contracts"
+out = "out"
+script = "scripts"
+libs = ["node_modules", "lib"]
+remappings = [
+    "@openzeppelin/=node_modules/@openzeppelin/",
+    "eth-gas-reporter/=node_modules/eth-gas-reporter/",
+    "truffle/=node_modules/truffle/",
+    "forge-std/=lib/forge-std/src/",
+]
+# gas_limit = "18446744073709551615"
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
