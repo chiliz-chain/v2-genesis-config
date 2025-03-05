@@ -11,12 +11,9 @@ import "./Staking.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 contract StakingPool is InjectorContextHolder, IStakingPool {
-
     event Stake(address indexed validator, address indexed staker, uint256 amount);
     event Unstake(address indexed validator, address indexed staker, uint256 amount);
     event Claim(address indexed validator, address indexed staker, uint256 amount);
-
-
 
     struct PendingUnstake {
         uint256 amount;
@@ -78,6 +75,15 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
             // increase total accumulated rewards
             validatorPool.totalStakedAmount += amountToStake;
             validatorPool.dustRewards += dustRewards;
+            
+            // Handle dust rewards if they exceed 500 CHZ
+            if (validatorPool.dustRewards >= 500 * 1e18) {
+                uint256 amountToDeposit = validatorPool.dustRewards;
+                validatorPool.dustRewards = 0;
+                // Deposit dust rewards to the staking contract
+                _stakingContract.deposit{value: amountToDeposit}(validator);
+            }
+            
             // save validator pool changes
             _validatorPools[validator] = validatorPool;
         }
