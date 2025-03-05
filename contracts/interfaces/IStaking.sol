@@ -64,6 +64,8 @@ interface IStaking is IValidatorSet {
 
     function undelegate(address validator, uint256 amount) external;
 
+    function deposit(address validatorAddress) external payable;
+
     function getValidatorFee(address validator) external view returns (uint256);
 
     function getValidatorFeeAtEpoch(address validator, uint64 beforeEpoch) external view returns (uint256);
