@@ -305,11 +305,15 @@ contract Staking is IStaking, InjectorContextHolder {
     function _fetchValidatorSnapshot(Validator memory validator, uint64 epoch) internal view returns (ValidatorSnapshot memory) {
         ValidatorSnapshot memory snapshot = _validatorSnapshots[validator.validatorAddress][epoch];
         // if snapshot is already initialized then just return it
-        if (snapshot.totalDelegated > 0 || epoch < validator.changedAt) {
+        if (snapshot.totalDelegated > 0) {
             return snapshot;
         }
         // find previous snapshot to copy parameters from it
-        ValidatorSnapshot memory lastModifiedSnapshot = _validatorSnapshots[validator.validatorAddress][validator.changedAt];
+        uint64 EpochToFetchFrom = validator.changedAt;
+        if (epoch < validator.changedAt) {
+            EpochToFetchFrom = findLatestSnapshotBefore(validator.validatorAddress, epoch);
+        }
+        ValidatorSnapshot memory lastModifiedSnapshot = _validatorSnapshots[validator.validatorAddress][EpochToFetchFrom];
         // last modified snapshot might store zero value, for first delegation it might happen and its not critical
         snapshot.totalDelegated = lastModifiedSnapshot.totalDelegated;
         snapshot.commissionRate = lastModifiedSnapshot.commissionRate;
