@@ -67,6 +67,8 @@ contract Staking is IStaking, InjectorContextHolder {
 
     event Paused(bool paused);
 
+    event SystemFeeClaimed(address indexed validator, uint256 amount, uint64 epoch);
+
     enum ValidatorStatus {
         NotFound,
         Active,
@@ -849,6 +851,21 @@ contract Staking is IStaking, InjectorContextHolder {
         snapshot.totalDelegated = totalDelegated;
         _validatorSnapshots[validatorAddress][epoch] = snapshot;
         emit ValidatorFixed(validatorAddress, totalDelegated);
+    }
+
+    function claimSystemFee(address validatorAddress, uint64 beforeEpoch) external {
+        uint256 systemFee = 0;
+        Validator storage validator = _validatorsMap[validatorAddress];
+        uint64 claimAt = validator.claimedAt;
+        for (; claimAt < beforeEpoch; claimAt++) {
+            ValidatorSnapshot storage validatorSnapshot = _validatorSnapshots[validator.validatorAddress][claimAt];
+            (,,uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
+            systemFee += slashingFee;
+        }
+        validator.claimedAt = claimAt;
+        // if we have system fee then pay it to treasury account
+        _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
+        emit SystemFeeClaimed(validator.validatorAddress, systemFee, beforeEpoch);
     }
 
     function _createOpDelegate(DelegationOpDelegate[] storage delegateQueue, uint64 epoch, uint112 amount) internal {
