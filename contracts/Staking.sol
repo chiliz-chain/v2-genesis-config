@@ -66,6 +66,8 @@ contract Staking is IStaking, InjectorContextHolder {
 
     event Paused(bool paused);
 
+    event SystemFeeClaimed(address indexed validator, uint256 amount, uint64 epoch);
+
     enum ValidatorStatus {
         NotFound,
         Active,
