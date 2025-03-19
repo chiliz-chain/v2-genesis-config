@@ -99,6 +99,7 @@ contract StakingSherlock124 is Test {
     }
 
     function test_Sherlock124() public {
+        vm.skip(true); // this test was added to prove that #124 is invalid and will always fail.
         address staker1 = vm.addr(1);
         address staker2 = vm.addr(2);
         address validator = vm.addr(5);
