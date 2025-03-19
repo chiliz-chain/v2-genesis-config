@@ -189,8 +189,8 @@ contract StakingSherlock66 is Test {
         staking.slash(vm.addr(MAX_VALIDATORS/2));
         vm.stopPrank();
 
-        // go to epoch 2 & release it for epoch 3
-        vm.roll(block.number + EPOCH_LEN);
+        // go to epoch 3 & release it for epoch 4
+        vm.roll(block.number + EPOCH_LEN*2);
         vm.prank(vm.addr(MAX_VALIDATORS/2));
         staking.releaseValidatorFromJail(vm.addr(MAX_VALIDATORS/2));
 
@@ -212,8 +212,8 @@ contract StakingSherlock66 is Test {
             assertEq(avl[i], vm.addr(i+1));
         }
 
-        // at epoch 3 we should have `MAX_VALIDATORS` validators again
-        avl = staking.getActiveValidatorsList(3);
+        // at epoch 4 we should have `MAX_VALIDATORS` validators again
+        avl = staking.getActiveValidatorsList(4);
         assertEq(avl.length, MAX_VALIDATORS);
         for (uint256 i = 0; i < avl.length; i++) {
             // the unjailed validator will be added at the end of the list
