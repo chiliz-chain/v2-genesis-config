@@ -23,6 +23,7 @@ import {ChainConfig} from "../contracts/ChainConfig.sol";
 contract StakingPoolTest is Test {
     using stdStorage for StdStorage;
 
+    Staking public staking;
     StakingPool public stakingPool;
     uint16 public constant EPOCH_LEN = 100;
 
@@ -45,7 +46,7 @@ contract StakingPoolTest is Test {
         uint256[] memory initialStakeArray = new uint256[](1);
 
         bytes memory ctoStaking = abi.encodeWithSignature("ctor(address[],uint256[],uint16)", valAddrArray, initialStakeArray, 0);
-        Staking staking = new Staking(ctoStaking);
+        staking = new Staking(ctoStaking);
 
         bytes memory ctorStakingPool = abi.encodeWithSignature("ctor()");
         stakingPool = new StakingPool(ctorStakingPool);
