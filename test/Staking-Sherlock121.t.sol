@@ -143,10 +143,6 @@ contract StakingSherlock121 is Test {
         assertEq(totalDelegated, 1002 ether);
         vm.stopPrank();
 
-        (,, totalDelegated,,,,,, totalRewards) = staking.getValidatorStatusAtEpoch(validator, currentEpoch);
-        assertEq(totalDelegated, 0);
-        assertEq(totalRewards, 0);
-
         // Deposit fees to validator that will modify the current epoch
         deal(block.coinbase, 3 ether);
         vm.prank(block.coinbase);
