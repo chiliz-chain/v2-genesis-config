@@ -100,7 +100,7 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         }
     }
 
-    function initMisdemeanorThresholdParam(uint64[] memory epochs, uint32[] memory thresholds) public {
+    function initMisdemeanorThresholdParam(uint64[] memory epochs, uint32[] memory thresholds) public onlyFromGovernance {
         require(epochs.length == thresholds.length, "IA"); // invalid arguments
 
         EpochToValue storage mt = _epochConsensusParams.misdemeanorThreshold;
