@@ -109,7 +109,7 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         }
     }
 
-    function initActiveValidatorLengthEpochParam(uint64[] memory epochs, uint32[] memory lengths) public {
+    function initActiveValidatorLengthEpochParam(uint64[] memory epochs, uint32[] memory lengths) public onlyFromGovernance {
         require(epochs.length == lengths.length, "IA"); // invalid arguments
 
         EpochToValue storage avl = _epochConsensusParams.activeValidatorLength;
