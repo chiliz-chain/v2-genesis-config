@@ -888,8 +888,7 @@ contract Staking is IStaking, InjectorContextHolder {
     function claimValidatorFee(address validatorAddress) external override {
         // make sure validator exists at least
         Validator storage validator = _validatorsMap[validatorAddress];
-        // only validator owner can claim deposit fee
-        require(msg.sender == validator.ownerAddress, "oo"); // only owner
+        require(validator.status != ValidatorStatus.NotFound, "nf"); // not found
         // claim all validator fees
         _claimValidatorOwnerRewards(validator, _currentEpoch());
     }
@@ -897,8 +896,7 @@ contract Staking is IStaking, InjectorContextHolder {
     function claimValidatorFeeAtEpoch(address validatorAddress, uint64 beforeEpoch) external override {
         // make sure validator exists at least
         Validator storage validator = _validatorsMap[validatorAddress];
-        // only validator owner can claim deposit fee
-        require(msg.sender == validator.ownerAddress, "oo"); // only owner
+        require(validator.status != ValidatorStatus.NotFound, "nf"); // not found
         // we disallow to claim rewards from future epochs
         require(beforeEpoch <= _currentEpoch());
         // claim all validator fees
@@ -994,21 +992,6 @@ contract Staking is IStaking, InjectorContextHolder {
     function togglePause() external onlyFromGovernance virtual {
         _paused = !_paused;
         emit Paused(_paused);
-    }
-
-    function claimSystemFee(address validatorAddress, uint64 beforeEpoch) external {
-        uint256 systemFee = 0;
-        Validator storage validator = _validatorsMap[validatorAddress];
-        uint64 claimAt = validator.claimedAt;
-        for (; claimAt < beforeEpoch; claimAt++) {
-            ValidatorSnapshot storage validatorSnapshot = _validatorSnapshots[validator.validatorAddress][claimAt];
-            (,,uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot, claimAt);
-            systemFee += slashingFee;
-        }
-        validator.claimedAt = claimAt;
-        // if we have system fee then pay it to treasury account
-        _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
-        emit SystemFeeClaimed(validator.validatorAddress, systemFee, beforeEpoch);
     }
 
     function _createOpDelegate(DelegationOpDelegate[] storage delegateQueue, uint64 epoch, uint112 amount) internal {
