@@ -43,7 +43,7 @@ contract StakingSherlock19 is Test {
         uint256[] memory initialStakeArray = new uint256[](1);
         initialStakeArray[0] = 100000 ether;
 
-        bytes memory ctorStaking = abi.encodeWithSignature("ctor(address[],uint256[],uint16)", valAddrArray, initialStakeArray, 0);
+        bytes memory ctorStaking = abi.encodeWithSignature("ctor(address[],uint256[],uint16)", valAddrArray, initialStakeArray, 700);
         staking = new Staking(ctorStaking);
 
         IStaking stakingContract = IStaking(staking);
@@ -82,11 +82,16 @@ contract StakingSherlock19 is Test {
         );
     }
 
-    function test_claimSystemFee() public {
-        vm.roll(block.number + EPOCH_LEN);
+    function test_claimValidatorFee() public {
+        vm.deal(block.coinbase, 20 ether);
 
-        // simulate reward distribution
-        vm.deal(block.coinbase, 10 ether);
+        // go to epoch 1 and simulate reward distribution (this will go to ownerFee)
+        vm.roll(block.number + EPOCH_LEN);
+        vm.prank(block.coinbase);
+        staking.deposit{value: 10 ether}(vm.addr(5));
+
+        // go to epoch 2 and simulate reward distribution (this will go to systemFee after we slash)
+        vm.roll(block.number + EPOCH_LEN);
         vm.prank(block.coinbase);
         staking.deposit{value: 10 ether}(vm.addr(5));
 
@@ -96,9 +101,13 @@ contract StakingSherlock19 is Test {
             staking.slash(vm.addr(5));
         }
 
-        // claim the system fee & make sure that systemRewards received the funds
-        staking.claimSystemFee(vm.addr(5), 2);
+        // go to epoch 3, cause we want to claim the system fee for epoch 2
+        vm.roll(block.number + EPOCH_LEN);
+
+        // claim the system fee & make sure that systemRewards & validator owner received the funds
+        staking.claimValidatorFeeAtEpoch(vm.addr(5), 3);
 
         assertEq(vm.addr(20).balance, 10 ether);
+        assertEq(vm.addr(5).balance, 700000000000000000); // 10 ether * 0.07 (commissionRate)
     }
 }
