@@ -20,9 +20,11 @@ import {StakingPool} from "../contracts/StakingPool.sol";
 import {SystemReward} from "../contracts/SystemReward.sol";
 import {ChainConfig} from "../contracts/ChainConfig.sol";
 
-contract NotPayable {
+contract PayableWithHighGasCost {
+    mapping(uint256 => uint256) public data;
+
     receive() external payable {
-         revert();
+        data[0] = 1;
     }
 }
 
@@ -91,18 +93,53 @@ contract SystemRewardTest is Test {
         );
     }
 
-    // @notice updateDistributionShare() should revert if a new account is not able to receive CHZ
-    function test_updateDistributionShare_RevertWhen_AccountNotPayable() public {
-        NotPayable npa = new NotPayable();
-        address[] memory accounts = new address[](2);
+    // @notice updateDistributionShare() shouldn't revert if a new account is not able to receive CHZ
+    //         the new account should be added to distributionShares & _excludedFromAutoClaim
+    //         when auto claim happens, the contract should distribute CHZ to all accounts, meaning
+    //          - for accounts that can receive CHZ it should do a transfer
+    //          - for accounts that can't - it should keep the amounts in a mapping. the account should be
+    //            able to claim these funds manually later.
+    function test_systemFeeDistributionShouldWork() public {
+        uint256 distributionSharesLen = 2;
+        address[] memory accounts = new address[](distributionSharesLen);
         accounts[0] = vm.addr(3);
-        accounts[1] = address(npa);
-        uint16[] memory shares = new uint16[](2);
+        accounts[1] = address(new PayableWithHighGasCost());
+        uint16[] memory shares = new uint16[](distributionSharesLen);
         shares[0] = 5000;
         shares[1] = 5000;
 
         vm.prank(vm.addr(20)); // governance
-        vm.expectRevert(bytes("SystemReward: account cannot receive CHZ"));
         systemReward.updateDistributionShare(accounts, shares);
+
+        // check that both accounts are in distributionShares
+        bytes32 distributionSharesSlot = bytes32(uint256(104));
+        bytes32 acc1Slot = keccak256(abi.encode(104));
+        bytes32 acc2Slot = bytes32(uint256(acc1Slot)+1);
+        assertEq(uint256(vm.load(address(systemReward), distributionSharesSlot)), distributionSharesLen);
+        assertEq(address(uint160(uint256(vm.load(address(systemReward), acc1Slot)))), accounts[0]);
+        assertEq(address(uint160(uint256(vm.load(address(systemReward), acc2Slot)))), accounts[1]);
+
+        // check that accounts[1] is in excludedFromAutoClaim
+        bytes32 excludedFromAutoClaimSlot = keccak256(abi.encode(accounts[1], 105));
+        assertEq(vm.load(address(systemReward), excludedFromAutoClaimSlot), bytes32(uint256(1)));
+
+        // send 60 CHZ to systemReward, this should trigger auto claim
+        (bool callSuccess,) = address(systemReward).call{value: 60 ether}("");
+        assertEq(callSuccess, true);
+
+        // check that accounts[0] received the chz
+        assertEq(accounts[0].balance, 30 ether);
+        assertEq(address(systemReward).balance, 30 ether); // 30 ether meant for 2nd account should still be in the contract
+
+        // try to claim fees for excluded account
+        systemReward.claimSystemFeeExcluded(accounts[1]);
+
+        // the excluded account should get 30 ethers (50% of what we sent to SystemReward)
+        assertEq(accounts[1].balance, 30 ether);
+        assertEq(address(systemReward).balance, 0);
+        assertEq(uint256(vm.load(address(systemReward), keccak256(abi.encode(accounts[1], 106)) )), 0); //check _amountsForExcludedAccounts
+        assertEq(uint256(vm.load(address(systemReward), bytes32(uint256(107)))), 0); //check _totalExcludedAccountsFee
+
+
     }
 }

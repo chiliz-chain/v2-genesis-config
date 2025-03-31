@@ -39,6 +39,14 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
     // distribution share between holders
     DistributionShare[] internal _distributionShares;
 
+    // accounts that are in _distributionShares, but need >2300 gas to receive CHZ
+    // and should be excluded from auto claim
+    mapping(address => bool) internal _excludedFromAutoClaim;
+
+    // fees that can be claimed by excluded accounts
+    mapping(address => uint256) internal _amountsForExcludedAccounts;
+    uint256 internal _totalExcludedAccountsFee;
+
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
 
@@ -59,7 +67,9 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
             address account = accounts[i];
             uint16 share = shares[i];
             (bool success, ) = account.call{value: 0, gas: 2300}("");
-            require(success, "SystemReward: account cannot receive CHZ");
+            if (!success) {
+                _excludedFromAutoClaim[account] = true;
+            }
             require(share >= SHARE_MIN_VALUE && share <= SHARE_MAX_VALUE, "SystemReward: bad share distribution");
             if (i >= _distributionShares.length) {
                 _distributionShares.push(DistributionShare(account, share));
@@ -87,6 +97,10 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
         _claimSystemFee();
     }
 
+    function claimSystemFeeExcluded(address shareHolder) external {
+        _claimSystemFeeExcluded(shareHolder);
+    }
+
     receive() external payable {
         // increase total system fee
         _systemFee += msg.value;
@@ -109,16 +123,36 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
             return;
         }
         // distribute rewards based on the shares
-        uint256 totalPaid = 0;
+        uint256 totalDistributed = 0;
         for (uint256 i = 0; i < _distributionShares.length; i++) {
             DistributionShare memory ds = _distributionShares[i];
             uint256 accountFee = amountToPay * ds.share / SHARE_MAX_VALUE;
+            if (_excludedFromAutoClaim[ds.account]) {
+                _amountsForExcludedAccounts[ds.account] += accountFee;
+                _totalExcludedAccountsFee += accountFee;
+                totalDistributed += accountFee;
+                continue;
+            }
             // reentrancy attack is not possible here because we set system fee to zero
             Address.sendValue(payable(ds.account), accountFee);
             emit FeeClaimed(ds.account, accountFee);
-            totalPaid += accountFee;
+            totalDistributed += accountFee;
         }
         // return some dust back to the acc
-        _systemFee = amountToPay - totalPaid;
+        _systemFee = amountToPay - totalDistributed;
+    }
+
+    function _claimSystemFeeExcluded(address excludedAccount) internal {
+        require(_excludedFromAutoClaim[excludedAccount], "ne"); // not excluded
+
+        uint256 amount = _amountsForExcludedAccounts[excludedAccount];
+        require(amount > 0, "nf"); // no funds
+
+        Address.sendValue(payable(excludedAccount), amount);
+
+        _totalExcludedAccountsFee -= amount;
+        _amountsForExcludedAccounts[excludedAccount] = 0;
+
+        emit FeeClaimed(excludedAccount, amount);
     }
 }
