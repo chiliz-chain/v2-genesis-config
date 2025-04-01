@@ -739,40 +739,51 @@ contract Staking is IStaking, InjectorContextHolder {
     function _getValidators(uint64 epoch) internal view returns (address[] memory) {
         address[] memory avl = getActiveValidatorsList(epoch);
         uint256 n = avl.length;
-        address[] memory orderedValidators = new address[](n);
-        for (uint256 i = 0; i < n; i++) {
-            orderedValidators[i] = avl[i];
-        }
         // we need to select k top validators out of n
         uint256 k = _chainConfigContract.getActiveValidatorsLength(epoch);
         if (k > n) {
             k = n;
         }
-        for (uint256 i = 0; i < k; i++) {
-            uint256 nextValidator = i;
-            Validator memory currentMax = _validatorsMap[orderedValidators[nextValidator]];
-            for (uint256 j = i + 1; j < n; j++) {
-                Validator memory current = _validatorsMap[orderedValidators[j]];
-                if (_totalDelegatedToValidator(currentMax, epoch) < _totalDelegatedToValidator(current, epoch)) {
+        uint256 i;
+        uint256 j;
+        uint256 nextValidator;
+        uint256 currentMaxTotalDelegated;
+        uint256 currentTotalDelegated;
+        for (;i < k;) {
+            nextValidator = i;
+
+            Validator memory currentMax = _validatorsMap[avl[nextValidator]];
+            currentMaxTotalDelegated = _totalDelegatedToValidator(currentMax, epoch);
+
+            unchecked{j = i + 1;}
+            for (;j < n;) {
+                Validator memory current = _validatorsMap[avl[j]];
+                currentTotalDelegated = _totalDelegatedToValidator(current, epoch);
+
+                if (currentMaxTotalDelegated < currentTotalDelegated) {
                     nextValidator = j;
                     currentMax = current;
-                } else if (_totalDelegatedToValidator(currentMax, epoch) == _totalDelegatedToValidator(current, epoch)) {
+                    currentMaxTotalDelegated = currentTotalDelegated;
+                } else if (currentMaxTotalDelegated == currentTotalDelegated) {
                     // if validators have the same total delegated amount, we prioritize the one with lower index in the active validators list (lower index = was added earlier)
                     if (_validatorAdditionIdx[currentMax.validatorAddress] > _validatorAdditionIdx[current.validatorAddress]) {
                         nextValidator = j;
                         currentMax = current;
+                        currentMaxTotalDelegated = currentTotalDelegated;
                     }
                 }
+
+                unchecked { ++j; }
             }
-            address backup = orderedValidators[i];
-            orderedValidators[i] = orderedValidators[nextValidator];
-            orderedValidators[nextValidator] = backup;
+            (avl[i], avl[nextValidator]) = (avl[nextValidator], avl[i]);
+
+            unchecked { ++i; }
         }
         // this is to cut array to first k elements without copying
         assembly {
-            mstore(orderedValidators, k)
+            mstore(avl, k)
         }
-        return orderedValidators;
+        return avl;
     }
 
     function deposit(address validatorAddress) external payable onlyFromCoinbaseOrTokenomics onlyZeroGasPrice virtual override {
