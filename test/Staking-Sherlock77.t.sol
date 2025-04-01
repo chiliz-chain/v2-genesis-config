@@ -77,6 +77,7 @@ contract StakingSherlock77 is Test {
         address validatorA = makeAddr("validatorA");
         address validatorB = makeAddr("validatorB");
         address validatorC = makeAddr("validatorC");
+        address validatorD = makeAddr("validatorD");
 
         vm.startPrank(vm.addr(20));
         // Set Active validator length to 2
@@ -85,14 +86,16 @@ contract StakingSherlock77 is Test {
         staking.addValidator(validatorA);
         staking.addValidator(validatorB);
         staking.addValidator(validatorC);
+        staking.addValidator(validatorD);
         vm.stopPrank();
 
         address delegator = makeAddr("Delegator");
-        deal(delegator, 40 ether);
+        deal(delegator, 50 ether);
         vm.startPrank(delegator);
         staking.delegate{value: 10 ether}(validatorA);
         staking.delegate{value: 10 ether}(validatorB);
         staking.delegate{value: 20 ether}(validatorC);
+        staking.delegate{value: 10 ether}(validatorD);
         vm.stopPrank();
 
         // The returned valdiators should be validatorC and validatorA
@@ -100,5 +103,15 @@ contract StakingSherlock77 is Test {
         assertEq(validatorAddresses.length, 2);
         assertEq(validatorAddresses[0], validatorC);
         assertEq(validatorAddresses[1], validatorA);
+
+        // delete validatorA
+        vm.prank(vm.addr(20));
+        staking.removeValidator(validatorA);
+
+        // The returned valdiators should be validatorC and validatorB
+        validatorAddresses = staking.getValidatorsAtEpoch(1);
+        assertEq(validatorAddresses.length, 2);
+        assertEq(validatorAddresses[0], validatorC);
+        assertEq(validatorAddresses[1], validatorB);
     }
 }

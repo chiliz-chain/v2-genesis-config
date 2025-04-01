@@ -129,6 +129,10 @@ contract Staking is IStaking, InjectorContextHolder {
 
     EpochToActiveValidatorsList internal _activeValidatorsListPerEpoch;
 
+    // mapping with validator addresses and their index in the list upon addition (validator -> index)
+    // used for chronological sorting in _getValidators()
+    mapping(address => uint256) internal _validatorAdditionIdx;
+
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
 
@@ -140,6 +144,23 @@ contract Staking is IStaking, InjectorContextHolder {
             totalStakes += initialStakes[i];
         }
         require(address(this).balance == totalStakes, "bm"); // balance mismatch
+    }
+
+    function initActiveValidatorsListPerEpoch() public onlyFromGovernance {
+        require(_activeValidatorsListPerEpoch.epochs.length == 0, "AI"); // already initialized
+
+        // copy _activeValidatorsList to epoch 0 and to current epoch
+        _activeValidatorsListPerEpoch.value[0] = _activeValidatorsList;
+        _activeValidatorsListPerEpoch.epochs.push(0);
+        uint64 e = _currentEpoch();
+        if (e > 0) {
+            _activeValidatorsListPerEpoch.value[e] = _activeValidatorsList;
+            _activeValidatorsListPerEpoch.epochs.push(e);
+        }
+        uint64 i;
+        for (; i < _activeValidatorsList.length; ++i) {
+            _validatorAdditionIdx[_activeValidatorsList[i]] = i;
+        }
     }
 
     function getValidatorDelegation(address validatorAddress, address delegator) external view override returns (
@@ -574,6 +595,7 @@ contract Staking is IStaking, InjectorContextHolder {
         } else{
             _activeValidatorsListPerEpoch.value[epoch].push(validatorAddress);
         }
+        _validatorAdditionIdx[validatorAddress] = _activeValidatorsListPerEpoch.value[epoch].length - 1;
     }
 
     function getActiveValidatorsList(uint64 epoch) public view returns (address[] memory) {
@@ -621,6 +643,7 @@ contract Staking is IStaking, InjectorContextHolder {
         address[] storage avl = _activeValidatorsListPerEpoch.value[ne];
         for (uint256 i = 0; i < avl.length; i++) {
             if (avl[i] != validatorAddress) continue;
+            delete _validatorAdditionIdx[validatorAddress];
             avl[i] = avl[avl.length - 1];
             avl.pop();
             return;
@@ -728,19 +751,16 @@ contract Staking is IStaking, InjectorContextHolder {
         for (uint256 i = 0; i < k; i++) {
             uint256 nextValidator = i;
             Validator memory currentMax = _validatorsMap[orderedValidators[nextValidator]];
-            uint256 currentMaxIdx = i;
             for (uint256 j = i + 1; j < n; j++) {
                 Validator memory current = _validatorsMap[orderedValidators[j]];
                 if (_totalDelegatedToValidator(currentMax, epoch) < _totalDelegatedToValidator(current, epoch)) {
                     nextValidator = j;
                     currentMax = current;
-                    currentMaxIdx = j;
                 } else if (_totalDelegatedToValidator(currentMax, epoch) == _totalDelegatedToValidator(current, epoch)) {
                     // if validators have the same total delegated amount, we prioritize the one with lower index in the active validators list (lower index = was added earlier)
-                    if (currentMaxIdx < j) {
+                    if (_validatorAdditionIdx[currentMax.validatorAddress] > _validatorAdditionIdx[current.validatorAddress]) {
                         nextValidator = j;
                         currentMax = current;
-                        currentMaxIdx = j;
                     }
                 }
             }
