@@ -104,6 +104,10 @@ contract StakingSherlock77 is Test {
         assertEq(validatorAddresses[0], validatorC);
         assertEq(validatorAddresses[1], validatorA);
 
+        // undelegate everything from validatorA
+        vm.prank(delegator);
+        staking.undelegate(validatorA, 10 ether);
+
         // delete validatorA
         vm.prank(vm.addr(20));
         staking.removeValidator(validatorA);
