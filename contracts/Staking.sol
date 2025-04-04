@@ -51,7 +51,7 @@ contract Staking is IStaking, InjectorContextHolder {
     uint64 internal constant TRANSFER_GAS_LIMIT = 30000;
 
     // validator events
-    event ValidatorAdded(address indexed validator, address owner, uint8 status, uint16 commissionRate, uint64 epoch);
+    event ValidatorAdded(address indexed validator, address owner, uint8 status, uint16 commissionRate);
     event ValidatorModified(address indexed validator, address owner, uint8 status, uint16 commissionRate);
     event ValidatorRemoved(address indexed validator);
     event ValidatorOwnerClaimed(address indexed validator, uint256 amount, uint64 epoch);
@@ -644,7 +644,7 @@ contract Staking is IStaking, InjectorContextHolder {
         require(delegation.delegateQueue.length == 0, "eq"); // empty queue
         _createOpDelegate(delegation.delegateQueue,sinceEpoch, _packCompact(initialStake));
         // emit event
-        emit ValidatorAdded(validatorAddress, validatorOwner, uint8(status), commissionRate, sinceEpoch);
+        emit ValidatorAdded(validatorAddress, validatorOwner, uint8(status), commissionRate);
     }
 
     function _addValidatorToActiveValidatorsList(address validatorAddress, uint64 epoch) internal {
