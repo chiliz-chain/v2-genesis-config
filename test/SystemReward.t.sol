@@ -22,9 +22,21 @@ import {ChainConfig} from "../contracts/ChainConfig.sol";
 
 contract PayableWithHighGasCost {
     mapping(uint256 => uint256) public data;
+    bool reentrant;
+    SystemReward target;
+
+    constructor(bool _reentrant, address _target) {
+        reentrant = _reentrant;
+        target = SystemReward(payable(_target));
+    }
 
     receive() external payable {
         data[0] = 1;
+        if (reentrant) {
+            // keep calling claimSystemFeeExcluded until it fails
+            // and ignore the revert error
+            try target.claimSystemFeeExcluded(address(this)) {} catch {}
+        }
     }
 }
 
@@ -103,7 +115,7 @@ contract SystemRewardTest is Test {
         uint256 distributionSharesLen = 2;
         address[] memory accounts = new address[](distributionSharesLen);
         accounts[0] = vm.addr(3);
-        accounts[1] = address(new PayableWithHighGasCost());
+        accounts[1] = address(new PayableWithHighGasCost(false, address(0)));
         uint16[] memory shares = new uint16[](distributionSharesLen);
         shares[0] = 5000;
         shares[1] = 5000;
@@ -139,7 +151,30 @@ contract SystemRewardTest is Test {
         assertEq(address(systemReward).balance, 0);
         assertEq(uint256(vm.load(address(systemReward), keccak256(abi.encode(accounts[1], 106)) )), 0); //check _amountsForExcludedAccounts
         assertEq(uint256(vm.load(address(systemReward), bytes32(uint256(107)))), 0); //check _totalExcludedAccountsFee
+    }
 
+    function test_claimSystemFeeExcluded_RevertWhen_RecipientReenters() public {
+        uint256 distributionSharesLen = 2;
+        address[] memory accounts = new address[](distributionSharesLen);
+        accounts[0] = address(new PayableWithHighGasCost(false, address(0)));
+        accounts[1] = address(new PayableWithHighGasCost(true, address(systemReward)));
+        uint16[] memory shares = new uint16[](distributionSharesLen);
+        shares[0] = 5000;
+        shares[1] = 5000;
 
+        vm.prank(vm.addr(20)); // governance
+        systemReward.updateDistributionShare(accounts, shares);
+
+        // send 60 CHZ to systemReward, this should trigger auto claim
+        (bool callSuccess,) = address(systemReward).call{value: 60 ether}("");
+        assertEq(callSuccess, true);
+
+        // try to claim fees for excluded account that tries to reenter the function
+        systemReward.claimSystemFeeExcluded(accounts[1]);
+
+        // the account should have received only their share (50% of 60 ether)
+        // rest should still be in the contract
+        assertEq(accounts[1].balance, 30 ether);
+        assertEq(address(systemReward).balance, 30 ether);
     }
 }

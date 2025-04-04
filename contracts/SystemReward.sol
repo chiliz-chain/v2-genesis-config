@@ -148,10 +148,10 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
         uint256 amount = _amountsForExcludedAccounts[excludedAccount];
         require(amount > 0, "nf"); // no funds
 
-        Address.sendValue(payable(excludedAccount), amount);
-
         _totalExcludedAccountsFee -= amount;
         _amountsForExcludedAccounts[excludedAccount] = 0;
+
+        Address.sendValue(payable(excludedAccount), amount);
 
         emit FeeClaimed(excludedAccount, amount);
     }
