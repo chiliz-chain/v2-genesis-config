@@ -51,7 +51,7 @@ contract Staking is IStaking, InjectorContextHolder {
     uint64 internal constant TRANSFER_GAS_LIMIT = 30000;
 
     // validator events
-    event ValidatorAdded(address indexed validator, address owner, uint8 status, uint16 commissionRate);
+    event ValidatorAdded(address indexed validator, address owner, uint8 status, uint16 commissionRate, uint64 epoch);
     event ValidatorModified(address indexed validator, address owner, uint8 status, uint16 commissionRate);
     event ValidatorRemoved(address indexed validator);
     event ValidatorOwnerClaimed(address indexed validator, uint256 amount, uint64 epoch);
@@ -67,7 +67,7 @@ contract Staking is IStaking, InjectorContextHolder {
 
     event Paused(bool paused);
 
-    event SystemFeeClaimed(address indexed validator, uint256 amount, uint64 epoch);
+    event test(uint256 len);
 
     enum ValidatorStatus {
         NotFound,
@@ -131,9 +131,9 @@ contract Staking is IStaking, InjectorContextHolder {
 
     EpochToActiveValidatorsList internal _activeValidatorsListPerEpoch;
 
-    // mapping with validator addresses and their index in the list upon addition (validator -> index)
+    // mapping with validator addresses and the epoch upon addition (validator -> epoch)
     // used for chronological sorting in _getValidators()
-    mapping(address => uint256) internal _validatorAdditionIdx;
+    mapping(address => uint256) internal _validatorAdditionEpoch;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
@@ -162,7 +162,7 @@ contract Staking is IStaking, InjectorContextHolder {
 
         uint64 i;
         for (; i < _activeValidatorsList.length; ++i) {
-            _validatorAdditionIdx[_activeValidatorsList[i]] = i;
+            _validatorAdditionEpoch[_activeValidatorsList[i]] = e;
         }
     }
 
@@ -646,7 +646,7 @@ contract Staking is IStaking, InjectorContextHolder {
         require(delegation.delegateQueue.length == 0, "eq"); // empty queue
         _createOpDelegate(delegation.delegateQueue,sinceEpoch, _packCompact(initialStake));
         // emit event
-        emit ValidatorAdded(validatorAddress, validatorOwner, uint8(status), commissionRate);
+        emit ValidatorAdded(validatorAddress, validatorOwner, uint8(status), commissionRate, sinceEpoch);
     }
 
     function _addValidatorToActiveValidatorsList(address validatorAddress, uint64 epoch) internal {
@@ -661,9 +661,10 @@ contract Staking is IStaking, InjectorContextHolder {
             _activeValidatorsListPerEpoch.value[epoch].push(validatorAddress);
             _activeValidatorsListPerEpoch.epochs.push(epoch);
         } else{
+            emit test(_activeValidatorsListPerEpoch.epochs.length);
             _activeValidatorsListPerEpoch.value[epoch].push(validatorAddress);
         }
-        _validatorAdditionIdx[validatorAddress] = _activeValidatorsListPerEpoch.value[epoch].length - 1;
+        _validatorAdditionEpoch[validatorAddress] = epoch;
     }
 
     function getActiveValidatorsList(uint64 epoch) public view returns (address[] memory) {
@@ -711,7 +712,7 @@ contract Staking is IStaking, InjectorContextHolder {
         address[] storage avl = _activeValidatorsListPerEpoch.value[ne];
         for (uint256 i = 0; i < avl.length; i++) {
             if (avl[i] != validatorAddress) continue;
-            delete _validatorAdditionIdx[validatorAddress];
+            delete _validatorAdditionEpoch[validatorAddress];
             avl[i] = avl[avl.length - 1];
             avl.pop();
             return;
@@ -837,8 +838,8 @@ contract Staking is IStaking, InjectorContextHolder {
                     currentMax = current;
                     currentMaxTotalDelegated = currentTotalDelegated;
                 } else if (currentMaxTotalDelegated == currentTotalDelegated) {
-                    // if validators have the same total delegated amount, we prioritize the one with lower index in the active validators list (lower index = was added earlier)
-                    if (_validatorAdditionIdx[currentMax.validatorAddress] > _validatorAdditionIdx[current.validatorAddress]) {
+                    // if validators have the same total delegated amount, sort chronologically
+                    if (_validatorAdditionEpoch[currentMax.validatorAddress] > _validatorAdditionEpoch[current.validatorAddress]) {
                         nextValidator = j;
                         currentMax = current;
                         currentMaxTotalDelegated = currentTotalDelegated;

@@ -32,8 +32,10 @@ contract StakingSherlock77 is Test {
         );
         chainConfig = new ChainConfig(ctorChainConfig);
 
-        address[] memory valAddrArray = new address[](0);
-        uint256[] memory initialStakeArray = new uint256[](0);
+        address[] memory valAddrArray = new address[](1);
+        valAddrArray[0] = makeAddr("validatorA");
+        uint256[] memory initialStakeArray = new uint256[](1);
+        initialStakeArray[0] = 10 ether;
 
         bytes memory ctoStaking = abi.encodeWithSignature("ctor(address[],uint256[],uint16)", valAddrArray, initialStakeArray, 0);
         staking = new Staking(ctoStaking);
@@ -60,6 +62,7 @@ contract StakingSherlock77 is Test {
             tokenomicsContract
         );
 
+        deal(address(staking), 10 ether);
         staking.initManually(
             stakingContract,
             slashingIndicatorContract,
@@ -74,7 +77,7 @@ contract StakingSherlock77 is Test {
     }
 
     function testAudit_GetValiators() public {
-        address validatorA = makeAddr("validatorA");
+        address validatorA = makeAddr("validatorA"); // was added in epoch 0
         address validatorB = makeAddr("validatorB");
         address validatorC = makeAddr("validatorC");
         address validatorD = makeAddr("validatorD");
@@ -83,23 +86,29 @@ contract StakingSherlock77 is Test {
         // Set Active validator length to 2
         chainConfig.setActiveValidatorsLength(2);
         // Add validators
-        staking.addValidator(validatorA);
         staking.addValidator(validatorB);
+
+        vm.roll(block.number + EPOCH_LEN); // goto epoch 1
+
         staking.addValidator(validatorC);
+
+        vm.roll(block.number + EPOCH_LEN); // goto epoch 2
+
         staking.addValidator(validatorD);
         vm.stopPrank();
 
         address delegator = makeAddr("Delegator");
-        deal(delegator, 50 ether);
+        deal(delegator, 40 ether);
         vm.startPrank(delegator);
-        staking.delegate{value: 10 ether}(validatorA);
         staking.delegate{value: 10 ether}(validatorB);
         staking.delegate{value: 20 ether}(validatorC);
         staking.delegate{value: 10 ether}(validatorD);
         vm.stopPrank();
-
+        staking.getActiveValidatorsList(1);
+        staking.getActiveValidatorsList(2);
+        staking.getActiveValidatorsList(3);
         // The returned valdiators should be validatorC and validatorA
-        address[] memory validatorAddresses = staking.getValidatorsAtEpoch(1);
+        address[] memory validatorAddresses = staking.getValidatorsAtEpoch(3);
         assertEq(validatorAddresses.length, 2);
         assertEq(validatorAddresses[0], validatorC);
         assertEq(validatorAddresses[1], validatorA);
@@ -113,7 +122,7 @@ contract StakingSherlock77 is Test {
         staking.removeValidator(validatorA);
 
         // The returned valdiators should be validatorC and validatorB
-        validatorAddresses = staking.getValidatorsAtEpoch(1);
+        validatorAddresses = staking.getValidatorsAtEpoch(4);
         assertEq(validatorAddresses.length, 2);
         assertEq(validatorAddresses[0], validatorC);
         assertEq(validatorAddresses[1], validatorB);
