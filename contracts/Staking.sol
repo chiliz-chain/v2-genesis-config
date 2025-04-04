@@ -67,8 +67,6 @@ contract Staking is IStaking, InjectorContextHolder {
 
     event Paused(bool paused);
 
-    event test(uint256 len);
-
     enum ValidatorStatus {
         NotFound,
         Active,
@@ -595,7 +593,6 @@ contract Staking is IStaking, InjectorContextHolder {
             _activeValidatorsListPerEpoch.value[epoch].push(validatorAddress);
             _activeValidatorsListPerEpoch.epochs.push(epoch);
         } else{
-            emit test(_activeValidatorsListPerEpoch.epochs.length);
             _activeValidatorsListPerEpoch.value[epoch].push(validatorAddress);
         }
         _validatorAdditionEpoch[validatorAddress] = epoch;
