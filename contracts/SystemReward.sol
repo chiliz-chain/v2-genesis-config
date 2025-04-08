@@ -4,8 +4,10 @@ pragma solidity ^0.8.0;
 import "./Injector.sol";
 
 import "@openzeppelin/contracts/utils/Address.sol";
+import {ExcessivelySafeCall} from "ExcessivelySafeCall/ExcessivelySafeCall.sol";
 
 contract SystemReward is ISystemReward, InjectorContextHolder {
+    using ExcessivelySafeCall for address;
 
     /**
      * Parlia has 100 ether limit for max fee, its better to enable auto claim
@@ -134,7 +136,9 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
                 continue;
             }
             // reentrancy attack is not possible here because we set system fee to zero
-            Address.sendValue(payable(ds.account), accountFee);
+            (bool success,) = ds.account.excessivelySafeCall(50_000, accountFee, 32, "");
+            require(success, "failed to send");
+
             emit FeeClaimed(ds.account, accountFee);
             totalDistributed += accountFee;
         }
@@ -151,7 +155,8 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
         _totalExcludedAccountsFee -= amount;
         _amountsForExcludedAccounts[excludedAccount] = 0;
 
-        Address.sendValue(payable(excludedAccount), amount);
+        (bool success,) = excludedAccount.excessivelySafeCall(50_000, amount, 32, "");
+        require(success, "failed to send");
 
         emit FeeClaimed(excludedAccount, amount);
     }
