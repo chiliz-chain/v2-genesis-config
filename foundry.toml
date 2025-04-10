@@ -2,13 +2,7 @@
 src = "contracts"
 out = "out"
 script = "scripts"
-libs = ["node_modules", "lib"]
-remappings = [
-    "@openzeppelin/=node_modules/@openzeppelin/",
-    "eth-gas-reporter/=node_modules/eth-gas-reporter/",
-    "truffle/=node_modules/truffle/",
-    "forge-std/=lib/forge-std/src/",
-]
+libs = ["lib"]
 # gas_limit = "18446744073709551615"
 fs_permissions = [{ access = "read", path = "./out"}]
 
