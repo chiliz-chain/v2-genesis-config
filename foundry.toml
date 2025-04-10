@@ -1,0 +1,14 @@
+[profile.default]
+src = "contracts"
+out = "out"
+libs = ["node_modules", "lib"]
+remappings = [
+    "@openzeppelin/=node_modules/@openzeppelin/",
+    "eth-gas-reporter/=node_modules/eth-gas-reporter/",
+    "truffle/=node_modules/truffle/",
+    "forge-std/=lib/forge-std/src/",
+]
+solc = '0.8.17'
+optimizer = true
+optimizer_runs = 50
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
