@@ -137,7 +137,14 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
             }
             // reentrancy attack is not possible here because we set system fee to zero
             (bool success,) = ds.account.excessivelySafeCall(50_000, accountFee, 32, "");
-            require(success, "failed to send");
+
+            if (!success) {
+                _excludedFromAutoClaim[ds.account] = true;
+                _amountsForExcludedAccounts[ds.account] += accountFee;
+                _totalExcludedAccountsFee += accountFee;
+                totalDistributed += accountFee;
+                continue;
+            }
 
             emit FeeClaimed(ds.account, accountFee);
             totalDistributed += accountFee;
