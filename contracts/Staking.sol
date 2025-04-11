@@ -2,10 +2,8 @@
 pragma solidity ^0.8.0;
 
 import "./Injector.sol";
-import {ExcessivelySafeCall} from "ExcessivelySafeCall/ExcessivelySafeCall.sol";
 
 contract Staking is IStaking, InjectorContextHolder {
-    using ExcessivelySafeCall for address;
     /**
      * This constant indicates precision of storing compact balances in the storage or floating point. Since default
      * balance precision is 256 bits it might gain some overhead on the storage because we don't need to store such huge
@@ -800,7 +798,7 @@ contract Staking is IStaking, InjectorContextHolder {
     }
 
     function _safeTransferWithGasLimit(address recipient, uint256 amount) internal {
-        (bool success,) = recipient.excessivelySafeCall(TRANSFER_GAS_LIMIT, amount, 32, "");
+        (bool success,) = recipient.call{value : amount, gas : 50_000}("");
         require(success, "tf"); // transfer failed
     }
 
