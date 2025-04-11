@@ -48,6 +48,7 @@ contract DummyContract1 is DummyContract{
 }
 
 contract RuntimeUpgradeTest is Test {
+    event DummyEvent();
     RuntimeUpgrade public runtimeUpgrade;
     ChainConfig public chainConfig;
     DummyContract dummyContract;
@@ -117,7 +118,7 @@ contract RuntimeUpgradeTest is Test {
         // upgrade DummyContract to DummyContract1 and make sure the 'applyFunction' gets called
         // by checking the emitted event from the function & the state variable
         vm.expectEmit(true, true, true, true);
-        emit DummyContract1.DummyEvent();
+        emit DummyEvent();
         vm.prank(vm.addr(20));
         runtimeUpgrade.upgradeSystemSmartContract(address(dummyContract), vm.getDeployedCode("DummyContract1"), abi.encodeWithSignature("dummyFunction()"));
         assertEq(dummyContract.dummyValue(), 8);
