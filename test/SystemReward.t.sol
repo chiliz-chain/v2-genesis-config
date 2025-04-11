@@ -198,8 +198,7 @@ contract SystemRewardTest is Test {
         (bool callSuccess,) = address(systemReward).call{value: 60 ether}("");
         assertEq(callSuccess, true);
 
-        // try to claim fees for excluded account that tries to returnbomb
-        vm.expectRevert(bytes("failed to send"));
+        // try to claim fees for excluded account that tries to returnbomb, shouldn't revert
         systemReward.claimSystemFeeExcluded(accounts[0]);
     }
 }
