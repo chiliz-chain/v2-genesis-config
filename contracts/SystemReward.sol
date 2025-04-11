@@ -162,8 +162,7 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
         _totalExcludedAccountsFee -= amount;
         _amountsForExcludedAccounts[excludedAccount] = 0;
 
-        (bool success,) = excludedAccount.excessivelySafeCall(50_000, amount, 32, "");
-        require(success, "failed to send");
+        Address.sendValue(payable(excludedAccount), amount);
 
         emit FeeClaimed(excludedAccount, amount);
     }
