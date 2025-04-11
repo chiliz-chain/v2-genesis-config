@@ -1020,7 +1020,7 @@ contract Staking is IStaking, InjectorContextHolder {
         uint64 claimAt = _systemFeeClaimedAt[validatorAddress];
         for (; claimAt < beforeEpoch; claimAt++) {
             ValidatorSnapshot storage validatorSnapshot = _validatorSnapshots[validator.validatorAddress][claimAt];
-            (,,uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
+            (,,uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot, claimAt);
             systemFee += slashingFee;
         }
         _systemFeeClaimedAt[validator.validatorAddress] = claimAt;
