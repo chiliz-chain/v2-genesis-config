@@ -66,6 +66,8 @@ contract Staking is IStaking, InjectorContextHolder {
     event Claimed(address indexed validator, address indexed staker, uint256 amount, uint64 epoch);
     event Redelegated(address indexed validator, address indexed staker, uint256 amount, uint256 dust, uint64 epoch);
 
+    event SystemFeeClaimed(address indexed validator, uint256 amount, uint64 epoch);
+
     event Paused(bool paused);
 
     enum ValidatorStatus {
@@ -120,6 +122,9 @@ contract Staking is IStaking, InjectorContextHolder {
     mapping(address => mapping(uint64 => ValidatorSnapshot)) internal _validatorSnapshots;
 
     bool internal _paused;
+
+    // mapping with validator addresses and epochs where the system fee was claimed (validator -> epoch)
+    mapping(address => uint64) internal _systemFeeClaimedAt;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
@@ -472,18 +477,14 @@ contract Staking is IStaking, InjectorContextHolder {
 
     function _claimValidatorOwnerRewards(Validator storage validator, uint64 beforeEpoch) internal {
         uint256 availableFunds = 0;
-        uint256 systemFee = 0;
         uint64 claimAt = validator.claimedAt;
         for (; claimAt < beforeEpoch; claimAt++) {
             ValidatorSnapshot memory validatorSnapshot = _validatorSnapshots[validator.validatorAddress][claimAt];
-            (/*uint256 delegatorFee*/, uint256 ownerFee, uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
+            (/*uint256 delegatorFee*/, uint256 ownerFee,) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
             availableFunds += ownerFee;
-            systemFee += slashingFee;
         }
         validator.claimedAt = claimAt;
         _safeTransferWithGasLimit(payable(validator.ownerAddress), availableFunds);
-        // if we have system fee then pay it to treasury account
-        _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
         emit ValidatorOwnerClaimed(validator.validatorAddress, availableFunds, beforeEpoch);
     }
 
@@ -838,6 +839,21 @@ contract Staking is IStaking, InjectorContextHolder {
     function togglePause() external onlyFromGovernance virtual {
         _paused = !_paused;
         emit Paused(_paused);
+    }
+
+    function claimSystemFee(address validatorAddress, uint64 beforeEpoch) external {
+        uint256 systemFee = 0;
+        Validator storage validator = _validatorsMap[validatorAddress];
+        uint64 claimAt = _systemFeeClaimedAt[validatorAddress];
+        for (; claimAt < beforeEpoch; claimAt++) {
+            ValidatorSnapshot storage validatorSnapshot = _validatorSnapshots[validator.validatorAddress][claimAt];
+            (,,uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
+            systemFee += slashingFee;
+        }
+        _systemFeeClaimedAt[validatorAddress] = claimAt;
+        // if we have system fee then pay it to treasury account
+        _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
+        emit SystemFeeClaimed(validator.validatorAddress, systemFee, beforeEpoch);
     }
 
     function fixValidatorEpoch(address validatorAddress, uint112 totalDelegated, uint64 epoch) external onlyFromGovernance virtual {
