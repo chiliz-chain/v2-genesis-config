@@ -569,14 +569,18 @@ contract Staking is IStaking, InjectorContextHolder {
 
     function _claimValidatorOwnerRewards(Validator storage validator, uint64 beforeEpoch) internal {
         uint256 availableFunds = 0;
+        uint256 systemFee = 0;
         uint64 claimAt = validator.claimedAt;
         for (; claimAt < beforeEpoch; claimAt++) {
             ValidatorSnapshot memory validatorSnapshot = _validatorSnapshots[validator.validatorAddress][claimAt];
             (/*uint256 delegatorFee*/, uint256 ownerFee, uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot, claimAt);
             availableFunds += ownerFee;
+            systemFee += slashingFee;
         }
         validator.claimedAt = claimAt;
         _safeTransferWithGasLimit(payable(validator.ownerAddress), availableFunds);
+        _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
+        _systemFeeClaimedAt[validator.validatorAddress] = claimAt;
         emit ValidatorOwnerClaimed(validator.validatorAddress, availableFunds, beforeEpoch);
     }
 
@@ -1019,7 +1023,7 @@ contract Staking is IStaking, InjectorContextHolder {
             (,,uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
             systemFee += slashingFee;
         }
-        _systemFeeClaimedAt[validatorAddress] = claimAt;
+        _systemFeeClaimedAt[validator.validatorAddress] = claimAt;
         // if we have system fee then pay it to treasury account
         _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
         emit SystemFeeClaimed(validator.validatorAddress, systemFee, beforeEpoch);
