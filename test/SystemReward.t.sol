@@ -40,6 +40,12 @@ contract PayableWithHighGasCost {
     }
 }
 
+contract PayableWithHighGasCostReturnBomb {
+    fallback(bytes calldata) external payable returns (bytes memory) {
+        return new bytes(2 ** 20); // ~1MB of data
+    }
+}
+
 contract SystemRewardTest is Test {
     SystemReward public systemReward;
     ChainConfig public chainConfig;
@@ -176,5 +182,23 @@ contract SystemRewardTest is Test {
         // rest should still be in the contract
         assertEq(accounts[1].balance, 30 ether);
         assertEq(address(systemReward).balance, 30 ether);
+    }
+
+    function test_claimSystemFee_returnbomb() public {
+        uint256 distributionSharesLen = 1;
+        address[] memory accounts = new address[](distributionSharesLen);
+        accounts[0] = address(new PayableWithHighGasCostReturnBomb());
+        uint16[] memory shares = new uint16[](distributionSharesLen);
+        shares[0] = 10000;
+
+        vm.prank(vm.addr(20)); // governance
+        systemReward.updateDistributionShare(accounts, shares);
+
+        // send 60 CHZ to systemReward, this should trigger auto claim
+        (bool callSuccess,) = address(systemReward).call{value: 60 ether}("");
+        assertEq(callSuccess, true);
+
+        // try to claim fees for excluded account that tries to returnbomb, shouldn't revert
+        systemReward.claimSystemFeeExcluded(accounts[0]);
     }
 }
