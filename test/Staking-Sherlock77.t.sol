@@ -84,8 +84,11 @@ contract StakingSherlock77 is Test {
         chainConfig.setActiveValidatorsLength(2);
         // Add validators
         staking.addValidator(validatorA);
+        vm.warp(block.timestamp + 1);
         staking.addValidator(validatorB);
+        vm.warp(block.timestamp + 1);
         staking.addValidator(validatorC);
+        vm.warp(block.timestamp + 1);
         staking.addValidator(validatorD);
         vm.stopPrank();
 

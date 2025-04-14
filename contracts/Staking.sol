@@ -129,9 +129,9 @@ contract Staking is IStaking, InjectorContextHolder {
 
     EpochToActiveValidatorsList internal _activeValidatorsListPerEpoch;
 
-    // mapping with validator addresses and their index in the list upon addition (validator -> index)
+    // mapping with validator addresses and the block.timestamp upon addition (validator -> timestamp)
     // used for chronological sorting in _getValidators()
-    mapping(address => uint256) internal _validatorAdditionIdx;
+    mapping(address => uint256) internal _validatorAdditionTs;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
@@ -159,7 +159,7 @@ contract Staking is IStaking, InjectorContextHolder {
         }
         uint64 i;
         for (; i < _activeValidatorsList.length; ++i) {
-            _validatorAdditionIdx[_activeValidatorsList[i]] = i;
+            _validatorAdditionTs[_activeValidatorsList[i]] = block.timestamp;
         }
     }
 
@@ -595,7 +595,7 @@ contract Staking is IStaking, InjectorContextHolder {
         } else{
             _activeValidatorsListPerEpoch.value[epoch].push(validatorAddress);
         }
-        _validatorAdditionIdx[validatorAddress] = _activeValidatorsListPerEpoch.value[epoch].length - 1;
+        _validatorAdditionTs[validatorAddress] = block.timestamp;
     }
 
     function getActiveValidatorsList(uint64 epoch) public view returns (address[] memory) {
@@ -643,7 +643,7 @@ contract Staking is IStaking, InjectorContextHolder {
         address[] storage avl = _activeValidatorsListPerEpoch.value[ne];
         for (uint256 i = 0; i < avl.length; i++) {
             if (avl[i] != validatorAddress) continue;
-            delete _validatorAdditionIdx[validatorAddress];
+            delete _validatorAdditionTs[validatorAddress];
             avl[i] = avl[avl.length - 1];
             avl.pop();
             return;
@@ -765,8 +765,8 @@ contract Staking is IStaking, InjectorContextHolder {
                     currentMax = current;
                     currentMaxTotalDelegated = currentTotalDelegated;
                 } else if (currentMaxTotalDelegated == currentTotalDelegated) {
-                    // if validators have the same total delegated amount, we prioritize the one with lower index in the active validators list (lower index = was added earlier)
-                    if (_validatorAdditionIdx[currentMax.validatorAddress] > _validatorAdditionIdx[current.validatorAddress]) {
+                    // if validators have the same total delegated amount, sort chronologically
+                    if (_validatorAdditionTs[currentMax.validatorAddress] > _validatorAdditionTs[current.validatorAddress]) {
                         nextValidator = j;
                         currentMax = current;
                         currentMaxTotalDelegated = currentTotalDelegated;
