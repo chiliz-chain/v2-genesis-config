@@ -4,8 +4,10 @@ pragma solidity ^0.8.0;
 import "./Injector.sol";
 
 import "@openzeppelin/contracts/utils/Address.sol";
+import {ExcessivelySafeCall} from "ExcessivelySafeCall/ExcessivelySafeCall.sol";
 
 contract SystemReward is ISystemReward, InjectorContextHolder {
+    using ExcessivelySafeCall for address;
 
     /**
      * Parlia has 100 ether limit for max fee, its better to enable auto claim
@@ -38,6 +40,14 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
 
     // distribution share between holders
     DistributionShare[] internal _distributionShares;
+
+    // accounts that are in _distributionShares, but need >2300 gas to receive CHZ
+    // and should be excluded from auto claim
+    mapping(address => bool) internal _excludedFromAutoClaim;
+
+    // fees that can be claimed by excluded accounts
+    mapping(address => uint256) internal _amountsForExcludedAccounts;
+    uint256 internal _totalExcludedAccountsFee;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
@@ -89,6 +99,10 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
         _claimSystemFee();
     }
 
+    function claimSystemFeeExcluded(address shareHolder) external {
+        _claimSystemFeeExcluded(shareHolder);
+    }
+
     receive() external payable {
         // increase total system fee
         _systemFee += msg.value;
@@ -111,16 +125,45 @@ contract SystemReward is ISystemReward, InjectorContextHolder {
             return;
         }
         // distribute rewards based on the shares
-        uint256 totalPaid = 0;
+        uint256 totalDistributed = 0;
         for (uint256 i = 0; i < _distributionShares.length; i++) {
             DistributionShare memory ds = _distributionShares[i];
             uint256 accountFee = amountToPay * ds.share / SHARE_MAX_VALUE;
+            if (_excludedFromAutoClaim[ds.account]) {
+                _amountsForExcludedAccounts[ds.account] += accountFee;
+                _totalExcludedAccountsFee += accountFee;
+                totalDistributed += accountFee;
+                continue;
+            }
             // reentrancy attack is not possible here because we set system fee to zero
-            Address.sendValue(payable(ds.account), accountFee);
+            (bool success,) = ds.account.excessivelySafeCall(50_000, accountFee, 32, "");
+
+            if (!success) {
+                _excludedFromAutoClaim[ds.account] = true;
+                _amountsForExcludedAccounts[ds.account] += accountFee;
+                _totalExcludedAccountsFee += accountFee;
+                totalDistributed += accountFee;
+                continue;
+            }
+
             emit FeeClaimed(ds.account, accountFee);
-            totalPaid += accountFee;
+            totalDistributed += accountFee;
         }
         // return some dust back to the acc
-        _systemFee = amountToPay - totalPaid;
+        _systemFee = amountToPay - totalDistributed;
+    }
+
+    function _claimSystemFeeExcluded(address excludedAccount) internal {
+        require(_excludedFromAutoClaim[excludedAccount], "ne"); // not excluded
+
+        uint256 amount = _amountsForExcludedAccounts[excludedAccount];
+        require(amount > 0, "nf"); // no funds
+
+        _totalExcludedAccountsFee -= amount;
+        _amountsForExcludedAccounts[excludedAccount] = 0;
+
+        Address.sendValue(payable(excludedAccount), amount);
+
+        emit FeeClaimed(excludedAccount, amount);
     }
 }
