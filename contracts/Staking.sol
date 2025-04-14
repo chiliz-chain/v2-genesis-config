@@ -142,6 +142,19 @@ contract Staking is IStaking, InjectorContextHolder {
         require(address(this).balance == totalStakes, "bm"); // balance mismatch
     }
 
+    function initActiveValidatorsListPerEpoch() public onlyFromGovernance {
+        require(_activeValidatorsListPerEpoch.epochs.length == 0, "AI"); // already initialized
+
+        // copy _activeValidatorsList to epoch 0 and to current epoch
+        _activeValidatorsListPerEpoch.value[0] = _activeValidatorsList;
+        _activeValidatorsListPerEpoch.epochs.push(0);
+        uint64 e = _currentEpoch();
+        if (e > 0) {
+            _activeValidatorsListPerEpoch.value[e] = _activeValidatorsList;
+            _activeValidatorsListPerEpoch.epochs.push(e);
+        }
+    }
+
     function getValidatorDelegation(address validatorAddress, address delegator) external view override returns (
         uint256 delegatedAmount,
         uint64 atEpoch
