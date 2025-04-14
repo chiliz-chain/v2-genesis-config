@@ -42,6 +42,25 @@ type artifactData struct {
 	DeployedBytecode string `json:"deployedBytecode"`
 }
 
+func (a *artifactData) UnmarshalJSON(b []byte) error {
+	var s struct {
+		Bytecode struct {
+			Object string `json:"object"`
+		} `json:"bytecode"`
+		DeployedBytecode struct {
+			Object string `json:"object"`
+		} `json:"deployedBytecode"`
+	}
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	a.Bytecode = s.Bytecode.Object
+	a.DeployedBytecode = s.DeployedBytecode.Object
+
+	return nil
+}
+
 type dummyChainContext struct {
 }
 
@@ -154,31 +173,31 @@ var deployerProxyAddress = common.HexToAddress("0x000000000000000000000000000000
 var tokenomicsAddress = common.HexToAddress("0x0000000000000000000000000000000000007006")
 var intermediarySystemAddress = common.HexToAddress("0xfffffffffffffffffffffffffffffffffffffffe")
 
-//go:embed build/contracts/Staking.json
+//go:embed out/Staking.sol/Staking.json
 var stakingRawArtifact []byte
 
-//go:embed build/contracts/StakingPool.json
+//go:embed out/StakingPool.sol/StakingPool.json
 var stakingPoolRawArtifact []byte
 
-//go:embed build/contracts/ChainConfig.json
+//go:embed out/ChainConfig.sol/ChainConfig.json
 var chainConfigRawArtifact []byte
 
-//go:embed build/contracts/SlashingIndicator.json
+//go:embed out/SlashingIndicator.sol/SlashingIndicator.json
 var slashingIndicatorRawArtifact []byte
 
-//go:embed build/contracts/SystemReward.json
+//go:embed out/SystemReward.sol/SystemReward.json
 var systemRewardRawArtifact []byte
 
-//go:embed build/contracts/Governance.json
+//go:embed out/Governance.sol/Governance.json
 var governanceRawArtifact []byte
 
-//go:embed build/contracts/RuntimeUpgrade.json
+//go:embed out/RuntimeUpgrade.sol/RuntimeUpgrade.json
 var runtimeUpgradeRawArtifact []byte
 
-//go:embed build/contracts/DeployerProxy.json
+//go:embed out/DeployerProxy.sol/DeployerProxy.json
 var deployerProxyRawArtifact []byte
 
-//go:embed build/contracts/Tokenomics.json
+//go:embed out/Tokenomics.sol/Tokenomics.json
 var tokenomicsRawArtifact []byte
 
 func newArguments(typeNames ...string) abi.Arguments {
