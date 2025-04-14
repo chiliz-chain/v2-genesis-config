@@ -737,8 +737,7 @@ contract Staking is IStaking, InjectorContextHolder {
     function claimValidatorFee(address validatorAddress) external override {
         // make sure validator exists at least
         Validator storage validator = _validatorsMap[validatorAddress];
-        // only validator owner can claim deposit fee
-        require(msg.sender == validator.ownerAddress, "oo"); // only owner
+        require(validator.status != ValidatorStatus.NotFound, "nf"); // not found
         // claim all validator fees
         _claimValidatorOwnerRewards(validator, _currentEpoch());
     }
@@ -746,8 +745,7 @@ contract Staking is IStaking, InjectorContextHolder {
     function claimValidatorFeeAtEpoch(address validatorAddress, uint64 beforeEpoch) external override {
         // make sure validator exists at least
         Validator storage validator = _validatorsMap[validatorAddress];
-        // only validator owner can claim deposit fee
-        require(msg.sender == validator.ownerAddress, "oo"); // only owner
+        require(validator.status != ValidatorStatus.NotFound, "nf"); // not found
         // we disallow to claim rewards from future epochs
         require(beforeEpoch <= _currentEpoch());
         // claim all validator fees
