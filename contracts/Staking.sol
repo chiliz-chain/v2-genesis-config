@@ -160,9 +160,12 @@ contract Staking is IStaking, InjectorContextHolder {
             _activeValidatorsListPerEpoch.value[e] = _activeValidatorsList;
             _activeValidatorsListPerEpoch.epochs.push(e);
         }
+    }
 
+    function initValidatorAdditionTs() public onlyFromGovernance {
+        address[] memory avl = getActiveValidatorsList(_currentEpoch());
         uint64 i;
-        for (; i < _activeValidatorsList.length; ++i) {
+        for (; i < avl.length; ++i) {
             _validatorAdditionTs[_activeValidatorsList[i]] = block.timestamp;
         }
     }
