@@ -155,6 +155,14 @@ contract Staking is IStaking, InjectorContextHolder {
         }
     }
 
+    function initValidatorAdditionTs() public onlyFromGovernance {
+        address[] memory avl = getActiveValidatorsList(_currentEpoch());
+        uint64 i;
+        for (; i < avl.length; ++i) {
+            _validatorAdditionTs[_activeValidatorsList[i]] = block.timestamp;
+        }
+    }
+
     function getValidatorDelegation(address validatorAddress, address delegator) external view override returns (
         uint256 delegatedAmount,
         uint64 atEpoch
