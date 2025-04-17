@@ -43,7 +43,7 @@ contract StakingSherlock19 is Test {
         uint256[] memory initialStakeArray = new uint256[](1);
         initialStakeArray[0] = 100000 ether;
 
-        bytes memory ctorStaking = abi.encodeWithSignature("ctor(address[],uint256[],uint16)", valAddrArray, initialStakeArray, 0);
+        bytes memory ctorStaking = abi.encodeWithSignature("ctor(address[],uint256[],uint16)", valAddrArray, initialStakeArray, 3000);
         staking = new Staking(ctorStaking);
 
         IStaking stakingContract = IStaking(staking);
@@ -99,6 +99,44 @@ contract StakingSherlock19 is Test {
         // claim the system fee & make sure that systemRewards received the funds
         staking.claimSystemFee(vm.addr(5), 2);
 
+        assertEq(vm.addr(20).balance, 10 ether);
+    }
+
+    /// @notice calling claimValidatorFee() after claimSystemFee() shouldn't double count the system fee
+    function test_claimSystemFee_DoubleCount() public {
+        vm.roll(block.number + EPOCH_LEN);
+
+        // simulate reward distribution for epoch 2
+        vm.deal(block.coinbase, 20 ether);
+        vm.prank(block.coinbase);
+        staking.deposit{value: 10 ether}(vm.addr(5));
+
+        // go to epoch 3
+        vm.roll(block.number + 2*EPOCH_LEN);
+
+        // simulate reward distribution for epoch 3
+        vm.deal(block.coinbase, 10 ether);
+        vm.prank(block.coinbase);
+        staking.deposit{value: 10 ether}(vm.addr(5));
+
+        // slash the validator `misdemeanorThreshold` times in epoch 3
+        for (uint256 i = 0; i < 50; i++) {
+            vm.prank(vm.addr(20));
+            staking.slash(vm.addr(5));
+        }
+
+        // go to epoch 4
+        vm.roll(block.number + EPOCH_LEN);
+
+        // claim the system fee & make sure that systemRewards received the funds
+        staking.claimSystemFee(vm.addr(5), 4);
+
+        assertEq(vm.addr(20).balance, 10 ether);
+
+        // claim the validator fee & make sure that the validator received the funds and systemRewards balance didn't change
+        vm.prank(vm.addr(5));
+        staking.claimValidatorFeeAtEpoch(vm.addr(5), 4);
+        assertEq(vm.addr(5).balance, 10 ether * 3000/10000);
         assertEq(vm.addr(20).balance, 10 ether);
     }
 }

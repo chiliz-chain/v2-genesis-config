@@ -578,12 +578,16 @@ contract Staking is IStaking, InjectorContextHolder {
             ValidatorSnapshot memory validatorSnapshot = _validatorSnapshots[validator.validatorAddress][claimAt];
             (/*uint256 delegatorFee*/, uint256 ownerFee, uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot, claimAt);
             availableFunds += ownerFee;
-            systemFee += slashingFee;
+            if (claimAt > _systemFeeClaimedAt[validator.validatorAddress]){
+                systemFee += slashingFee;
+                _systemFeeClaimedAt[validator.validatorAddress] = claimAt;
+            }
         }
         validator.claimedAt = claimAt;
         _safeTransferWithGasLimit(payable(validator.ownerAddress), availableFunds);
-        _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
-        _systemFeeClaimedAt[validator.validatorAddress] = claimAt;
+        if (systemFee > 0) {
+            _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
+        }
         emit ValidatorOwnerClaimed(validator.validatorAddress, availableFunds, beforeEpoch);
     }
 
