@@ -8,3 +8,4 @@ node_modules/
 coverage
 coverage.json
 out/
+snapshots/

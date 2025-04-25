@@ -11,12 +11,9 @@ import "./Staking.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 contract StakingPool is InjectorContextHolder, IStakingPool {
-
     event Stake(address indexed validator, address indexed staker, uint256 amount);
     event Unstake(address indexed validator, address indexed staker, uint256 amount);
     event Claim(address indexed validator, address indexed staker, uint256 amount);
-
-
 
     struct PendingUnstake {
         uint256 amount;
@@ -30,6 +27,11 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
     mapping(address => mapping(address => PendingUnstake)) internal _pendingUnstakes;
     // allocated shares (validator => staker => shares)
     mapping(address => mapping(address => uint256)) internal _stakerShares;
+    // accounts that unstaked tokens after #125 was applied.
+    // this is needed to correctly decrement the variables for users that unstaked prior
+    // to the change.
+    // (staker => bool)
+    mapping(address => bool) internal _unstakedPostSherlockSupplyFixUpdate;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
@@ -73,6 +75,15 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
             // increase total accumulated rewards
             validatorPool.totalStakedAmount += amountToStake;
             validatorPool.dustRewards += dustRewards;
+            
+            // Handle dust rewards if they exceed 500 CHZ
+            if (validatorPool.dustRewards >= 500 * 1e18) {
+                uint256 amountToDeposit = validatorPool.dustRewards;
+                validatorPool.dustRewards = 0;
+                // Deposit dust rewards to the staking contract
+                _stakingContract.deposit{value: amountToDeposit}(validator);
+            }
+            
             // save validator pool changes
             _validatorPools[validator] = validatorPool;
         }
@@ -92,11 +103,12 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
     function _calcRatio(ValidatorPool memory validatorPool) internal view returns (uint256) {
         (uint256 stakedAmount, /*uint256 dustRewards*/) = _calcUnclaimedDelegatorFee(validatorPool);
         uint256 stakeWithRewards = validatorPool.totalStakedAmount + stakedAmount;
-        if (stakeWithRewards == 0) {
+        uint256 sharesSupply = validatorPool.sharesSupply;
+        if (stakeWithRewards == 0 || sharesSupply == 0) {
             return 1e18;
         }
         // we're doing upper rounding here
-        return (validatorPool.sharesSupply * 1e18 + stakeWithRewards - 1) / stakeWithRewards;
+        return (sharesSupply * 1e18 + stakeWithRewards - 1) / stakeWithRewards;
     }
 
     function _currentEpoch() internal view returns (uint64) {
@@ -138,7 +150,11 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
         epoch : _nextEpoch() + _chainConfigContract.getUndelegatePeriod()
         });
         validatorPool.pendingUnstake += amount;
+        validatorPool.sharesSupply -= shares;
+        validatorPool.totalStakedAmount -= amount;
         _validatorPools[validator] = validatorPool;
+        _stakerShares[validator][msg.sender] -= shares; //double check this
+        _unstakedPostSherlockSupplyFixUpdate[msg.sender] = true;
         // undelegate
         _stakingContract.undelegate(validator, amount);
         // emit event
@@ -159,10 +175,12 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
         require(pendingUnstake.epoch > 0, "StakingPool: nothing to claim");
         require(pendingUnstake.epoch <= _currentEpoch(), "StakingPool: not ready");
         // updates shares and validator pool params
-        _stakerShares[validator][msg.sender] -= shares;
         ValidatorPool memory validatorPool = _getValidatorPool(validator);
-        validatorPool.sharesSupply -= shares;
-        validatorPool.totalStakedAmount -= amount;
+        if (!_unstakedPostSherlockSupplyFixUpdate[msg.sender]) {
+            _stakerShares[validator][msg.sender] -= shares; //double check this
+            validatorPool.sharesSupply -= shares;
+            validatorPool.totalStakedAmount -= amount;
+        }
         validatorPool.pendingUnstake -= amount;
         _validatorPools[validator] = validatorPool;
         // remove pending claim
