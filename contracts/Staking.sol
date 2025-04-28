@@ -540,7 +540,7 @@ contract Staking is IStaking, InjectorContextHolder {
             availableFunds += ownerFee;
             if (claimAt >= _systemFeeClaimedAt[validator.validatorAddress]){
                 systemFee += slashingFee;
-                _systemFeeClaimedAt[validator.validatorAddress] = claimAt;
+                _systemFeeClaimedAt[validator.validatorAddress] = claimAt + 1;
             }
         }
         validator.claimedAt = claimAt;
