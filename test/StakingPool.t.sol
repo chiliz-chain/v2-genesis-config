@@ -24,6 +24,7 @@ contract StakingPoolTest is Test {
     using stdStorage for StdStorage;
 
     StakingPool public stakingPool;
+    Staking public staking;
     uint16 public constant EPOCH_LEN = 100;
 
     function setUp() public {
@@ -45,7 +46,7 @@ contract StakingPoolTest is Test {
         uint256[] memory initialStakeArray = new uint256[](1);
 
         bytes memory ctoStaking = abi.encodeWithSignature("ctor(address[],uint256[],uint16)", valAddrArray, initialStakeArray, 0);
-        Staking staking = new Staking(ctoStaking);
+        staking = new Staking(ctoStaking);
 
         bytes memory ctorStakingPool = abi.encodeWithSignature("ctor()");
         stakingPool = new StakingPool(ctorStakingPool);
