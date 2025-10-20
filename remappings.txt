@@ -1,0 +1,4 @@
+@openzeppelin/=node_modules/@openzeppelin/
+eth-gas-reporter/=node_modules/eth-gas-reporter/
+truffle/=node_modules/truffle/
+forge-std/=lib/forge-std/src/
