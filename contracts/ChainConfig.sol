@@ -76,12 +76,6 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         return _consensusParams.epochBlockInterval;
     }
 
-    function setEpochBlockInterval(uint32 newValue) external override onlyFromGovernance {
-        uint32 prevValue = _consensusParams.epochBlockInterval;
-        _consensusParams.epochBlockInterval = newValue;
-        emit EpochBlockIntervalChanged(prevValue, newValue);
-    }
-
     function getMisdemeanorThreshold() external view override returns (uint32) {
         return _consensusParams.misdemeanorThreshold;
     }
