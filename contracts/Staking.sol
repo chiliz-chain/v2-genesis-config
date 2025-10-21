@@ -828,7 +828,7 @@ contract Staking is IStaking, InjectorContextHolder {
         _validatorsMap[validatorAddress] = validator;
         // if validator has a lot of misses then put it in jail for 1 week (if epoch is 1 day)
         if (slashesCount >= _chainConfigContract.getFelonyThreshold()) {
-            validator.jailedBefore = _currentEpoch() + _chainConfigContract.getValidatorJailEpochLength();
+            validator.jailedBefore = _nextEpoch() + _chainConfigContract.getValidatorJailEpochLength();
             validator.status = ValidatorStatus.Jail;
             _removeValidatorFromActiveList(validatorAddress);
             _validatorsMap[validatorAddress] = validator;
