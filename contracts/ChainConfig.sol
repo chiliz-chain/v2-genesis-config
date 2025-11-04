@@ -86,31 +86,25 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         return _getValue(avl, epoch);
     }
 
-    function initActiveValidatorLengthEpochParam(uint64[] memory epochs, uint32[] memory lengths) public onlyFromGovernance {
-        require(epochs.length == lengths.length, "IA"); // invalid arguments
-
+    /// @notice Initialize active validators length and misdemeanor threshold per epoch variables.
+    function initEpochParams() public onlyFromRuntimeUpgrade {
         EpochToValue storage avl = _epochConsensusParams.activeValidatorLength;
         require(avl.epochs.length == 0, "AI"); // already initialized
-
-        uint256 len = epochs.length;
-        for (uint256 i = 0; i < len; i++) {
-            uint64 epoch = epochs[i];
-            avl.value[epoch] = lengths[i];
-            avl.epochs.push(epoch);
-        }
-    }
-
-    function initMisdemeanorThresholdParam(uint64[] memory epochs, uint32[] memory thresholds) public onlyFromGovernance {
-        require(epochs.length == thresholds.length, "IA"); // invalid arguments
 
         EpochToValue storage mt = _epochConsensusParams.misdemeanorThreshold;
         require(mt.epochs.length == 0, "AI"); // already initialized
 
-        uint256 len = epochs.length;
-        for (uint256 i = 0; i < len; i++) {
-            uint64 epoch = epochs[i];
-            mt.value[epoch] = thresholds[i];
-            mt.epochs.push(epoch);
+        // copy activeValidatorLength & misdemeanorThreshold to epoch 0 and to current epoch
+        avl.value[0] = _consensusParams.activeValidatorsLength;
+        avl.epochs.push(0);
+        mt.value[0] = _consensusParams.misdemeanorThreshold;
+        mt.epochs.push(0);
+        uint64 e = _stakingContract.currentEpoch();
+        if (e > 0) {
+            avl.value[e] = _consensusParams.activeValidatorsLength;
+            avl.epochs.push(e);
+            mt.value[e] = _consensusParams.misdemeanorThreshold;
+            mt.epochs.push(e);
         }
     }
 

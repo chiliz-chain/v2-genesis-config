@@ -136,4 +136,55 @@ contract ChainConfigSherlock66 is Test {
         uint256 gasUsed = vm.stopSnapshotGas();
         console.log("Gas needed: ", gasUsed);
     }
+
+    function test_initEpochConsensusParams() public {
+        // create without constructor so that the values stay uninitialized
+        chainConfig = new ChainConfig("");
+        IStaking stakingContract = IStaking(staking);
+        ISlashingIndicator slashingIndicatorContract = ISlashingIndicator(vm.addr(20));
+        ISystemReward systemRewardContract = ISystemReward(vm.addr(20));
+        IStakingPool stakingPoolContract = IStakingPool(vm.addr(20));
+        IGovernance governanceContract = IGovernance(vm.addr(20));
+        IChainConfig chainConfigContract = IChainConfig(chainConfig);
+        IRuntimeUpgrade runtimeUpgradeContract = IRuntimeUpgrade(vm.addr(20));
+        IDeployerProxy deployerProxyContract = IDeployerProxy(vm.addr(20));
+        ITokenomics tokenomicsContract = ITokenomics(vm.addr(20));
+        chainConfig.initManually(
+            stakingContract,
+            slashingIndicatorContract,
+            systemRewardContract,
+            stakingPoolContract,
+            governanceContract,
+            chainConfigContract,
+            runtimeUpgradeContract,
+            deployerProxyContract,
+            tokenomicsContract
+        );
+
+        uint32 activeValidatorsLen = 100;
+        uint32 misdemeanorThreshold = 10;
+        // Set new activeValidatorsLength (bits 0-31)
+        uint256 consensusParams = 0 | uint256(activeValidatorsLen);
+
+        // Set new misdemeanorThreshold (bits 64-95)
+        consensusParams = consensusParams | (uint256(misdemeanorThreshold) << 64);
+
+        /// populate _consensusParams (slot 102)
+        vm.store(address(chainConfig), bytes32(uint256(102)), bytes32(consensusParams));
+
+        vm.roll(block.number + EPOCH_LEN*200);
+
+        vm.prank(vm.addr(20));
+        chainConfig.initEpochParams();
+
+        uint64 currentEpoch = staking.currentEpoch();
+
+        assertEq(chainConfig.getActiveValidatorsLength(), activeValidatorsLen);
+        assertEq(chainConfig.getActiveValidatorsLength(0), activeValidatorsLen);
+        assertEq(chainConfig.getActiveValidatorsLength(currentEpoch), activeValidatorsLen);
+
+        assertEq(chainConfig.getMisdemeanorThreshold(), misdemeanorThreshold);
+        assertEq(chainConfig.getMisdemeanorThreshold(0), misdemeanorThreshold);
+        assertEq(chainConfig.getMisdemeanorThreshold(currentEpoch), misdemeanorThreshold);
+    }
 }

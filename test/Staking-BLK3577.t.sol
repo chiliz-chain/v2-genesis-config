@@ -90,7 +90,7 @@ contract StakingBLK3577 is Test {
 
         // init _activeValidatorsListPerEpoch and verify
         vm.prank(vm.addr(20));
-        staking.initActiveValidatorsListPerEpoch();
+        staking.initNewParams();
 
         for (uint64 i = 0; i < 200; i++) {
             address[] memory avl = staking.getActiveValidatorsList(i);
