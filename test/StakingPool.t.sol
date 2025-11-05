@@ -221,7 +221,8 @@ contract StakingPoolTest is Test {
 
         assertEq(vm.load(address(stakingPool), postAuditFixMappingSlot), bytes32(abi.encode(false)));
 
-        vm.store(address(stakingPool), postAuditFixMappingSlot, bytes32(abi.encode(true)));
+        vm.prank(vm.addr(20));
+        stakingPool.setUnstakedPostSherlockSupplyFixUpdate();
 
         assertEq(vm.load(address(stakingPool), postAuditFixMappingSlot), bytes32(abi.encode(true)));
     }
