@@ -215,4 +215,14 @@ contract StakingPoolTest is Test {
         assertEq(stakingPool.getValidatorPool(validator).totalStakedAmount, 0);
         assertEq(stakingPool.getValidatorPool(validator).sharesSupply, 0);
     }
+
+    function test_readUnstakedPostSherlockSupplyFixUpdateSlot() public {
+        bytes32 postAuditFixMappingSlot = keccak256(abi.encode(address(0), 105));
+
+        assertEq(vm.load(address(stakingPool), postAuditFixMappingSlot), bytes32(abi.encode(false)));
+
+        vm.store(address(stakingPool), postAuditFixMappingSlot, bytes32(abi.encode(true)));
+
+        assertEq(vm.load(address(stakingPool), postAuditFixMappingSlot), bytes32(abi.encode(true)));
+    }
 }
