@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
@@ -72,6 +73,10 @@ func (d *dummyChainContext) GetHeader(common.Hash, uint64) *types.Header {
 	return nil
 }
 
+func (d *dummyChainContext) Config() *params.ChainConfig {
+	return nil
+}
+
 func createExtraData(validators []common.Address) []byte {
 	extra := make([]byte, 32+20*len(validators)+65)
 	for i, v := range validators {
@@ -101,32 +106,22 @@ func simulateSystemContract(genesis *core.Genesis, systemContract common.Address
 	bytecode := append(hexutil.MustDecode(artifact.Bytecode), constructor...)
 	// simulate constructor execution
 	ethdb := rawdb.NewDatabase(memorydb.New())
-	db := state.NewDatabaseWithConfig(ethdb, &trie.Config{})
-	statedb, err := state.New(common.Hash{}, db, nil)
+	tdb := triedb.NewDatabase(ethdb, &triedb.Config{})
+	sdb := state.NewDatabase(tdb, nil)
+	statedb, err := state.New(common.Hash{}, sdb)
 	if err != nil {
 		return err
 	}
-	statedb.SetBalance(systemContract, balance)
+	b := uint256.MustFromBig(balance)
+	if b == nil {
+		b = uint256.NewInt(0)
+	}
+	statedb.SetBalance(systemContract, b, tracing.BalanceChangeUnspecified)
 	block := genesis.ToBlock()
 	blockContext := core.NewEVMBlockContext(block.Header(), &dummyChainContext{}, &common.Address{})
 
-	msg := &core.Message{
-		From:              common.Address{},
-		To:                &systemContract,
-		Nonce:             0,
-		Value:             big.NewInt(0),
-		GasLimit:          10_000_000,
-		GasPrice:          big.NewInt(0),
-		Data:              []byte{},
-		AccessList:        nil,
-		SkipAccountChecks: false,
-	}
-	txContext := core.NewEVMTxContext(msg)
-	if err != nil {
-		return err
-	}
-	evm := vm.NewEVM(blockContext, txContext, statedb, genesis.Config, vm.Config{})
-	deployedBytecode, _, err := evm.CreateWithAddress(vm.AccountRef(common.Address{}), bytecode, 10_000_000, big.NewInt(0), systemContract)
+	evm := vm.NewEVM(blockContext, statedb, genesis.Config, vm.Config{})
+	deployedBytecode, _, err := evm.CreateWithAddress(common.Address{}, bytecode, 10_000_000, big.NewInt(0), systemContract)
 	if err != nil {
 		for _, c := range deployedBytecode[64:] {
 			if c >= 32 && c <= unicode.MaxASCII {
@@ -138,18 +133,18 @@ func simulateSystemContract(genesis *core.Genesis, systemContract common.Address
 	}
 	storage := readDirtyStorageFromState(statedb.GetOrNewStateObject(systemContract))
 	// read state changes from state database
-	genesisAccount := core.GenesisAccount{
+	genesisAccount := types.Account{
 		Code:    deployedBytecode,
 		Storage: storage.Copy(),
 		Balance: big.NewInt(0),
 		Nonce:   0,
 	}
 	if genesis.Alloc == nil {
-		genesis.Alloc = make(core.GenesisAlloc)
+		genesis.Alloc = make(types.GenesisAlloc)
 	}
 	genesis.Alloc[systemContract] = genesisAccount
 	// make sure ctor working fine (better to fail here instead of in consensus engine)
-	errorCode, _, err := evm.Call(vm.AccountRef(common.Address{}), systemContract, hexutil.MustDecode("0xe1c7392a"), 10_000_000, big.NewInt(0))
+	errorCode, _, err := evm.Call(common.Address{}, systemContract, hexutil.MustDecode("0xe1c7392a"), 10_000_000, uint256.MustFromBig(big.NewInt(0)))
 	if err != nil {
 		for _, c := range errorCode[64:] {
 			if c >= 32 && c <= unicode.MaxASCII {
@@ -235,6 +230,8 @@ type ChilizForks struct {
 	DeployerFactoryBlock   *math.HexOrDecimal256 `json:"deployerFactoryBlock"`
 	Dragon8Time            uint64                `json:"dragon8Time,omitempty"`
 	Dragon8FixTime         uint64                `json:"dragon8FixTime,omitempty"`
+	Pepper8Time            uint64                `json:"pepper8Time,omitempty"`
+	Snake8Time             uint64                `json:"snake8Time,omitempty"`
 }
 
 type genesisConfig struct {
@@ -417,6 +414,8 @@ func defaultGenesisConfig(config genesisConfig) *core.Genesis {
 		DeployerFactoryBlock:   decimalToBigInt(config.Forks.DeployerFactoryBlock),
 		Dragon8Time:            &config.Forks.Dragon8Time,
 		Dragon8FixTime:         &config.Forks.Dragon8FixTime,
+		Pepper8Time:            &config.Forks.Pepper8Time,
+		Snake8Time:             &config.Forks.Snake8Time,
 
 		// NEW FORKS
 		// Ethereum forks
@@ -507,6 +506,8 @@ var localNetConfig = genesisConfig{
 		DeployerFactoryBlock:   (*math.HexOrDecimal256)(big.NewInt(0)),
 		Dragon8Time:            uint64(time.Now().Unix()),
 		Dragon8FixTime:         uint64(time.Now().Unix()),
+		Pepper8Time:            uint64(time.Now().Unix())+100,
+		Snake8Time:             uint64(time.Now().Unix())+200,
 	},
 }
 
@@ -519,36 +520,51 @@ var devNetConfig = genesisConfig{
 		common.HexToAddress("0x08fae3885e299c24ff9841478eb946f41023ac69"),
 		common.HexToAddress("0x751aaca849b09a3e347bbfe125cf18423cc24b40"),
 		common.HexToAddress("0xa6ff33e3250cc765052ac9d7f7dfebda183c4b9b"),
-		common.HexToAddress("0x49c0f7c8c11a4c80dc6449efe1010bb166818da8"),
-		common.HexToAddress("0x8e1ea6eaa09c3b40f4a51fcd056a031870a0549a"),
+		// common.HexToAddress("0x49c0f7c8c11a4c80dc6449efe1010bb166818da8"),
+		// common.HexToAddress("0x8e1ea6eaa09c3b40f4a51fcd056a031870a0549a"),
 	},
 	SystemTreasury: map[common.Address]uint16{
 		common.HexToAddress("0x0000000000000000000000000000000000000000"): 10000,
 	},
 	ConsensusParams: consensusParams{
 		ActiveValidatorsLength:   25,   // suggested values are (3k+1, where k is honest validators, even better): 7, 13, 19, 25, 31...
-		EpochBlockInterval:       1200, // better to use 1 day epoch (86400/3=28800, where 3s is block time)
-		MisdemeanorThreshold:     50,   // after missing this amount of blocks per day validator losses all daily rewards (penalty)
-		FelonyThreshold:          150,  // after missing this amount of blocks per day validator goes in jail for N epochs
-		ValidatorJailEpochLength: 7,    // how many epochs validator should stay in jail (7 epochs = ~7 days)
-		UndelegatePeriod:         6,    // allow claiming funds only after 6 epochs (~7 days)
+		EpochBlockInterval:       30, // better to use 1 day epoch (86400/3=28800, where 3s is block time)
+		MisdemeanorThreshold:     3,   // after missing this amount of blocks per day validator losses all daily rewards (penalty)
+		FelonyThreshold:          5,  // after missing this amount of blocks per day validator goes in jail for N epochs
+		ValidatorJailEpochLength: 2,    // how many epochs validator should stay in jail (7 epochs = ~7 days)
+		UndelegatePeriod:         1,    // allow claiming funds only after 6 epochs (~7 days)
 
 		MinValidatorStakeAmount: (*math.HexOrDecimal256)(hexutil.MustDecodeBig("0xde0b6b3a7640000")), // how many tokens validator must stake to create a validator (in ether)
 		MinStakingAmount:        (*math.HexOrDecimal256)(hexutil.MustDecodeBig("0xde0b6b3a7640000")), // minimum staking amount for delegators (in ether)
 	},
 	InitialStakes: map[common.Address]string{
-		common.HexToAddress("0x08fae3885e299c24ff9841478eb946f41023ac69"): "0x3635c9adc5dea00000", // 1000 eth
-		common.HexToAddress("0x751aaca849b09a3e347bbfe125cf18423cc24b40"): "0x3635c9adc5dea00000", // 1000 eth
-		common.HexToAddress("0xa6ff33e3250cc765052ac9d7f7dfebda183c4b9b"): "0x3635c9adc5dea00000", // 1000 eth
-		common.HexToAddress("0x49c0f7c8c11a4c80dc6449efe1010bb166818da8"): "0x3635c9adc5dea00000", // 1000 eth
-		common.HexToAddress("0x8e1ea6eaa09c3b40f4a51fcd056a031870a0549a"): "0x3635c9adc5dea00000", // 1000 eth
+		common.HexToAddress("0x08fae3885e299c24ff9841478eb946f41023ac69"): "0x690F271C0933080000", // 1938 eth
+		common.HexToAddress("0x751aaca849b09a3e347bbfe125cf18423cc24b40"): "0x34F69943A1D4A40000", // 977 eth
+		common.HexToAddress("0xa6ff33e3250cc765052ac9d7f7dfebda183c4b9b"): "0x5EF9E25D8194600000", // 1752 eth
+		// common.HexToAddress("0x49c0f7c8c11a4c80dc6449efe1010bb166818da8"): "0x58098703ADE2600000", // 1624 eth
+		// common.HexToAddress("0x8e1ea6eaa09c3b40f4a51fcd056a031870a0549a"): "0x27E60D44813F800000", // 736 eth
 	},
 	// owner of the governance
 	VotingPeriod: 60, // 3 minutes
 	// faucet
 	Faucet: map[common.Address]string{
-		common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"): "0x21e19e0c9bab2400000",    // governance
-		common.HexToAddress("0xb891fe7b38f857f53a7b5529204c58d5c487280b"): "0x52b7d2dcc80cd2e4000000", // faucet (10kk)
+		common.HexToAddress("0x00a601f45688dba8a070722073b015277cf36725"): "0x84595161401484A000000", // governance
+		common.HexToAddress("0xb891fe7b38f857f53a7b5529204c58d5c487280b"): "0x84595161401484A000000", // faucet (10kk)
+		common.HexToAddress("0x751aaca849b09a3e347bbfe125cf18423cc24b40"): "0x84595161401484A000000", // faucet (10kk)
+	},
+	TokenomicsParams: tokenomicsParams{
+		StakingShare:       6500,
+		SystemRewardsShare: 3500,
+	},
+	Forks: ChilizForks{
+		RuntimeUpgradeBlock:    (*math.HexOrDecimal256)(big.NewInt(0)),
+		DeployOriginBlock:      (*math.HexOrDecimal256)(big.NewInt(0)),
+		DeploymentHookFixBlock: (*math.HexOrDecimal256)(big.NewInt(0)),
+		DeployerFactoryBlock:   (*math.HexOrDecimal256)(big.NewInt(0)),
+		Dragon8Time:            uint64(time.Now().Unix()),
+		Dragon8FixTime:         uint64(time.Now().Unix()),
+		Pepper8Time:            uint64(time.Now().Unix())+100,
+		Snake8Time:             uint64(time.Now().Unix())+200,
 	},
 }
 
