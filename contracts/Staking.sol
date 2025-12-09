@@ -158,6 +158,14 @@ contract Staking is IStaking, InjectorContextHolder {
         }
     }
 
+    function initValidatorAdditionTs() public onlyFromGovernance {
+        address[] memory avl = getActiveValidatorsList(_currentEpoch());
+        uint64 i;
+        for (; i < avl.length; ++i) {
+            _validatorAdditionTs[_activeValidatorsList[i]] = block.timestamp;
+        }
+    }
+
     function getValidatorDelegation(address validatorAddress, address delegator) external view override returns (
         uint256 delegatedAmount,
         uint64 atEpoch
@@ -812,11 +820,20 @@ contract Staking is IStaking, InjectorContextHolder {
         for (uint256 i = 0; i < k; i++) {
             uint256 nextValidator = i;
             Validator memory currentMax = _validatorsMap[orderedValidators[nextValidator]];
+            uint256 currentMaxIdx = i;
             for (uint256 j = i + 1; j < n; j++) {
                 Validator memory current = _validatorsMap[orderedValidators[j]];
                 if (_totalDelegatedToValidator(currentMax, epoch) < _totalDelegatedToValidator(current, epoch)) {
                     nextValidator = j;
                     currentMax = current;
+                    currentMaxIdx = j;
+                } else if (_totalDelegatedToValidator(currentMax, epoch) == _totalDelegatedToValidator(current, epoch)) {
+                    // if validators have the same total delegated amount, we prioritize the one with lower index in the active validators list (lower index = was added earlier)
+                    if (currentMaxIdx < j) {
+                        nextValidator = j;
+                        currentMax = current;
+                        currentMaxIdx = j;
+                    }
                 }
             }
             address backup = orderedValidators[i];
