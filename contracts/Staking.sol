@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./Injector.sol";
 
+
 contract Staking is IStaking, InjectorContextHolder {
 
     /**
@@ -246,14 +247,23 @@ contract Staking is IStaking, InjectorContextHolder {
         return _currentEpoch() + 1;
     }
 
-    function _touchValidatorSnapshot(Validator memory validator, uint64 epoch) internal returns (ValidatorSnapshot storage) {
+    function _touchValidatorSnapshot(Validator memory validator, uint64 epoch)
+        internal
+        returns (ValidatorSnapshot storage)
+    {
         ValidatorSnapshot storage snapshot = _validatorSnapshots[validator.validatorAddress][epoch];
         // if snapshot is already initialized then just return it
         if (snapshot.totalDelegated > 0) {
             return snapshot;
         }
+
+        uint64 EpochToCopyFrom = validator.changedAt;
+        if (epoch < validator.changedAt) {
+            EpochToCopyFrom = findLatestSnapshotBefore(validator.validatorAddress, epoch);
+        }
+
         // find previous snapshot to copy parameters from it
-        ValidatorSnapshot memory lastModifiedSnapshot = _validatorSnapshots[validator.validatorAddress][validator.changedAt];
+        ValidatorSnapshot memory lastModifiedSnapshot = _validatorSnapshots[validator.validatorAddress][EpochToCopyFrom];
         // last modified snapshot might store zero value, for first delegation it might happen and its not critical
         snapshot.totalDelegated = lastModifiedSnapshot.totalDelegated;
         snapshot.commissionRate = lastModifiedSnapshot.commissionRate;
@@ -263,6 +273,26 @@ contract Staking is IStaking, InjectorContextHolder {
             validator.changedAt = epoch;
         }
         return snapshot;
+    }
+
+    function findLatestSnapshotBefore(address validatorAddress, uint64 epoch) internal view returns (uint64) {
+        // Adding a security check to avoid consuming too much gas
+        uint8 MAX_NB_EPOCH_TO_CHECK = 50;
+
+        uint64 latestEpoch = 0;
+        uint64 i;
+        for (i = 0; i <= MAX_NB_EPOCH_TO_CHECK; i++) {
+            uint64 e = epoch - i;
+            if (_validatorSnapshots[validatorAddress][e].totalDelegated > 0) {
+                latestEpoch = e;
+                break;
+            }
+        }
+        if (i > MAX_NB_EPOCH_TO_CHECK) {
+            return epoch;
+        }
+
+        return latestEpoch;
     }
 
     function _fetchValidatorSnapshot(Validator memory validator, uint64 epoch) internal view returns (ValidatorSnapshot memory) {
