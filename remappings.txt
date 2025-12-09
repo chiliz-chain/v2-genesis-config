@@ -1,4 +1,7 @@
-@openzeppelin/=node_modules/@openzeppelin/
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
+openzeppelin-contracts/=lib/openzeppelin-contracts/
+@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
 eth-gas-reporter/=node_modules/eth-gas-reporter/
 truffle/=node_modules/truffle/
 forge-std/=lib/forge-std/src/
+ExcessivelySafeCall/=lib/ExcessivelySafeCall/src/

@@ -1,6 +1,6 @@
 .PHONY: clean
 clean:
-	rm -rf ./build
+	forge clean
 
 .PHONY: install
 install:
@@ -8,7 +8,7 @@ install:
 
 .PHONY: compile
 compile:
-	yarn compile && node build-abi.js
+	forge build
 
 .PHONY: test
 test:
@@ -19,4 +19,4 @@ create-genesis:
 	go run ./create-genesis.go
 
 .PHONY: all
-all: clean install compile create-genesis
+all: clean compile create-genesis

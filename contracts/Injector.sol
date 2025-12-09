@@ -113,10 +113,12 @@ abstract contract InjectorContextHolder is Initializable, IInjector {
         _;
     }
 
-    modifier onlyFromCoinbaseOrTokenomics() {
+    modifier onlyFromCoinbaseOrTokenomicsOrStakingPool() {
         require(
-            msg.sender == block.coinbase || ITokenomics(msg.sender) == _tokenomicsContract,
-            "InjectorContextHolder: only coinbase or tokenomics"
+            msg.sender == block.coinbase 
+            || ITokenomics(msg.sender) == _tokenomicsContract
+            || IStakingPool(msg.sender) == _stakingPoolContract,
+            "InjectorContextHolder: only coinbase or tokenomics or staking pool"
         );
         _;
     }

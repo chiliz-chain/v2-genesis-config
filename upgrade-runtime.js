@@ -1,9 +1,9 @@
 const Web3 = require('web3'),
   fs = require('fs');
 
-const ABI_STAKING = require('./build/abi/Staking.json');
-const ABI_GOVERNANCE = require('./build/abi/Governance.json');
-const ABI_RUNTIME_UPGRADE = require('./build/abi/RuntimeUpgrade.json');
+const {abi: ABI_STAKING} = require('./out/Staking.sol/Staking.json');
+const {abi: ABI_GOVERNANCE} = require('./out/Governance.sol/Governance.json');
+const {abi: ABI_RUNTIME_UPGRADE} = require('./out/RuntimeUpgrade.sol/RuntimeUpgrade.json');
 const readline = require("readline");
 
 const askFor = async (question) => {
@@ -42,14 +42,14 @@ const ALL_ADDRESSES = [
 
 const readByteCodeForAddress = address => {
   const artifactPaths = {
-    [STAKING_ADDRESS]: './build/contracts/Staking.json',
-    [SLASHING_INDICATOR_ADDRESS]: './build/contracts/SlashingIndicator.json',
-    [SYSTEM_REWARD_ADDRESS]: './build/contracts/SystemReward.json',
-    [STAKING_POOL_ADDRESS]: './build/contracts/StakingPool.json',
-    [GOVERNANCE_ADDRESS]: './build/contracts/Governance.json',
-    [CHAIN_CONFIG_ADDRESS]: './build/contracts/ChainConfig.json',
-    [RUNTIME_UPGRADE_ADDRESS]: './build/contracts/RuntimeUpgrade.json',
-    [DEPLOYER_PROXY_ADDRESS]: './build/contracts/DeployerProxy.json',
+    [STAKING_ADDRESS]: './out/Staking.sol/Staking.json',
+    [SLASHING_INDICATOR_ADDRESS]: './out/SlashingIndicator.sol/SlashingIndicator.json',
+    [SYSTEM_REWARD_ADDRESS]: './out/SystemReward.sol/SystemReward.json',
+    [STAKING_POOL_ADDRESS]: './out/StakingPool.sol/StakingPool.json',
+    [GOVERNANCE_ADDRESS]: './out/Governance.sol/Governance.json',
+    [CHAIN_CONFIG_ADDRESS]: './out/ChainConfig.sol/ChainConfig.json',
+    [RUNTIME_UPGRADE_ADDRESS]: './out/RuntimeUpgrade.sol/RuntimeUpgrade.json',
+    [DEPLOYER_PROXY_ADDRESS]: './out/DeployerProxy.sol/DeployerProxy.json',
   }
   const filePath = artifactPaths[address]
   if (!filePath) throw new Error(`There is no artifact for the address: ${address}`)

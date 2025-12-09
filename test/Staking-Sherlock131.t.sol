@@ -19,32 +19,33 @@ import "../contracts/interfaces/ITokenomics.sol";
 import {Staking} from "../contracts/Staking.sol";
 import {ChainConfig} from "../contracts/ChainConfig.sol";
 
-contract StakingSherlock19 is Test {
+contract StakingSherlock131 is Test {
     Staking public staking;
     ChainConfig public chainConfig;
     uint16 public constant EPOCH_LEN = 100;
+    event Claimed(address indexed validator, address indexed staker, uint256 amount, uint64 epoch);
 
     function setUp() public {
         bytes memory ctorChainConfig = abi.encodeWithSignature(
             "ctor(uint32,uint32,uint32,uint32,uint32,uint32,uint256,uint256)",
-            1, // number of main validators
+            5, // number of main validators
             EPOCH_LEN, // epoch len
             50, // misdemeanorThreshold
             75, // felonyThreshold
             1, // validatorJailEpochLength
             1, // undelegatePeriod
-            1000 ether, // minValidatorStakeAmount
-            1 ether // minStakingAmount
+            0, // minValidatorStakeAmount
+            0 // minStakingAmount
         );
         chainConfig = new ChainConfig(ctorChainConfig);
 
         address[] memory valAddrArray = new address[](1);
         valAddrArray[0] = vm.addr(5);
         uint256[] memory initialStakeArray = new uint256[](1);
-        initialStakeArray[0] = 100000 ether;
+        initialStakeArray[0] = 1000 ether;
 
-        bytes memory ctorStaking = abi.encodeWithSignature("ctor(address[],uint256[],uint16)", valAddrArray, initialStakeArray, 3000);
-        staking = new Staking(ctorStaking);
+        bytes memory ctoStaking = abi.encodeWithSignature("ctor(address[],uint256[],uint16)", valAddrArray, initialStakeArray, 0);
+        staking = new Staking(ctoStaking);
 
         IStaking stakingContract = IStaking(staking);
         ISlashingIndicator slashingIndicatorContract = ISlashingIndicator(vm.addr(20));
@@ -68,7 +69,7 @@ contract StakingSherlock19 is Test {
             tokenomicsContract
         );
 
-        vm.deal(address(staking), 100000 ether);
+        vm.deal(address(staking), 1000 ether);
         staking.initManually(
             stakingContract,
             slashingIndicatorContract,
@@ -82,61 +83,48 @@ contract StakingSherlock19 is Test {
         );
     }
 
-    function test_claimSystemFee() public {
+    function test_sherlock131() public {
+        vm.roll(block.number + EPOCH_LEN * 100);
+
+        address staker = vm.addr(1);
+        address validator = vm.addr(5);
+
+        // delegate
+        vm.deal(staker, 1000 ether);
+        uint256 stakeAmount = 100 ether;
+        vm.prank(staker);
+        staking.delegate{value: stakeAmount}(validator);
+
+        // go to epoch 103
+        vm.roll(block.number + EPOCH_LEN*2);
+
+        // undelegate
+        vm.prank(staker);
+        staking.undelegate(validator, stakeAmount * 999 / 1000);
+
+        // send rewards
+        uint256 rewards = 20 ether;
+        vm.deal(block.coinbase, rewards);
+        vm.prank(block.coinbase);
+        staking.deposit{value: rewards}(validator);
+
+
+        // go to epoch 104
         vm.roll(block.number + EPOCH_LEN);
 
-        // simulate reward distribution
-        vm.deal(block.coinbase, 10 ether);
-        vm.prank(block.coinbase);
-        staking.deposit{value: 10 ether}(vm.addr(5));
+        uint256 delegatorFeeBeforeClaim = staking.getDelegatorFee(validator, staker);
+        uint256 stakingBalanceBeforeClaim = address(staking).balance;
+        console.log("delegatorFeeBeforeClaim", delegatorFeeBeforeClaim);
+        console.log("stakingBalanceBeforeClaim", stakingBalanceBeforeClaim);
 
-        // slash the validator `misdemeanorThreshold` times
-        for (uint256 i = 0; i < 50; i++) {
-            vm.prank(vm.addr(20));
-            staking.slash(vm.addr(5));
-        }
+        // claim
+        // uint256 expectedClaim = (1-0/1e4)*rewards*stakeAmount/(1000 ether + stakeAmount / 1000);
+        // if we receive the expectedClaim above, it's incorrect.
 
-        // claim the system fee & make sure that systemRewards received the funds
-        staking.claimSystemFee(vm.addr(5), 2);
-
-        assertEq(vm.addr(20).balance, 10 ether);
-    }
-
-    /// @notice calling claimValidatorFee() after claimSystemFee() shouldn't double count the system fee
-    function test_claimSystemFee_DoubleCount() public {
-        vm.roll(block.number + EPOCH_LEN);
-
-        // simulate reward distribution for epoch 2
-        vm.deal(block.coinbase, 20 ether);
-        vm.prank(block.coinbase);
-        staking.deposit{value: 10 ether}(vm.addr(5));
-
-        // go to epoch 3
-        vm.roll(block.number + 2*EPOCH_LEN);
-
-        // simulate reward distribution for epoch 3
-        vm.deal(block.coinbase, 10 ether);
-        vm.prank(block.coinbase);
-        staking.deposit{value: 10 ether}(vm.addr(5));
-
-        // slash the validator `misdemeanorThreshold` times in epoch 3
-        for (uint256 i = 0; i < 50; i++) {
-            vm.prank(vm.addr(20));
-            staking.slash(vm.addr(5));
-        }
-
-        // go to epoch 4
-        vm.roll(block.number + EPOCH_LEN);
-
-        // claim the system fee & make sure that systemRewards received the funds
-        staking.claimSystemFee(vm.addr(5), 4);
-
-        assertEq(vm.addr(20).balance, 10 ether);
-
-        // claim the validator fee & make sure that the validator received the funds and systemRewards balance didn't change
-        vm.prank(vm.addr(5));
-        staking.claimValidatorFeeAtEpoch(vm.addr(5), 4);
-        assertEq(vm.addr(5).balance, 10 ether * 3000/10000);
-        assertEq(vm.addr(20).balance, 10 ether);
+        uint256 expectedClaim = (1-0/1e4)*rewards*stakeAmount/(1000 ether + stakeAmount);
+        vm.expectEmit(true, true, true, true);
+        emit Claimed(validator, staker, expectedClaim, staking.currentEpoch());
+        vm.prank(staker);
+        staking.claimDelegatorFee(validator);
     }
 }

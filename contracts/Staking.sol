@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import "./Injector.sol";
 
-contract Staking is IStaking, InjectorContextHolder {
 
+contract Staking is IStaking, InjectorContextHolder {
     /**
      * This constant indicates precision of storing compact balances in the storage or floating point. Since default
      * balance precision is 256 bits it might gain some overhead on the storage because we don't need to store such huge
@@ -120,6 +120,9 @@ contract Staking is IStaking, InjectorContextHolder {
     mapping(address => mapping(uint64 => ValidatorSnapshot)) internal _validatorSnapshots;
 
     bool internal _paused;
+
+    // mapping with validator addresses and epochs where the system fee was claimed (validator -> epoch)
+    mapping(address => uint64) internal _systemFeeClaimedAt;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
@@ -246,14 +249,23 @@ contract Staking is IStaking, InjectorContextHolder {
         return _currentEpoch() + 1;
     }
 
-    function _touchValidatorSnapshot(Validator memory validator, uint64 epoch) internal returns (ValidatorSnapshot storage) {
+    function _touchValidatorSnapshot(Validator memory validator, uint64 epoch)
+        internal
+        returns (ValidatorSnapshot storage)
+    {
         ValidatorSnapshot storage snapshot = _validatorSnapshots[validator.validatorAddress][epoch];
         // if snapshot is already initialized then just return it
         if (snapshot.totalDelegated > 0) {
             return snapshot;
         }
+
+        uint64 EpochToCopyFrom = validator.changedAt;
+        if (epoch < validator.changedAt) {
+            EpochToCopyFrom = findLatestSnapshotBefore(validator.validatorAddress, epoch);
+        }
+
         // find previous snapshot to copy parameters from it
-        ValidatorSnapshot memory lastModifiedSnapshot = _validatorSnapshots[validator.validatorAddress][validator.changedAt];
+        ValidatorSnapshot memory lastModifiedSnapshot = _validatorSnapshots[validator.validatorAddress][EpochToCopyFrom];
         // last modified snapshot might store zero value, for first delegation it might happen and its not critical
         snapshot.totalDelegated = lastModifiedSnapshot.totalDelegated;
         snapshot.commissionRate = lastModifiedSnapshot.commissionRate;
@@ -263,6 +275,26 @@ contract Staking is IStaking, InjectorContextHolder {
             validator.changedAt = epoch;
         }
         return snapshot;
+    }
+
+    function findLatestSnapshotBefore(address validatorAddress, uint64 epoch) internal view returns (uint64) {
+        // Adding a security check to avoid consuming too much gas
+        uint8 MAX_NB_EPOCH_TO_CHECK = 50;
+
+        uint64 latestEpoch = 0;
+        uint64 i;
+        for (i = 0; i <= MAX_NB_EPOCH_TO_CHECK; i++) {
+            uint64 e = epoch - i;
+            if (_validatorSnapshots[validatorAddress][e].totalDelegated > 0) {
+                latestEpoch = e;
+                break;
+            }
+        }
+        if (i > MAX_NB_EPOCH_TO_CHECK) {
+            return epoch;
+        }
+
+        return latestEpoch;
     }
 
     function _fetchValidatorSnapshot(Validator memory validator, uint64 epoch) internal view returns (ValidatorSnapshot memory) {
@@ -350,7 +382,30 @@ contract Staking is IStaking, InjectorContextHolder {
             _createOpDelegate(delegation.delegateQueue, beforeEpoch, nextDelegatedAmount);
         }
         // create new undelegate queue operation with soft lock
-        delegation.undelegateQueue.push(DelegationOpUndelegate({amount : _packCompact(amount), epoch : beforeEpoch + _chainConfigContract.getUndelegatePeriod()}));
+        // Unless the undelegate period changes, the undelegateQueue is sorted by epoch in ascending order.
+        // Considering the above, if undelegate period increases,
+        // the `epoch` of the last operation in the queue will be less than or equal to the new operation's `epoch`.
+        // In this case we can safely push the new operation to the end of the queue.
+        // However, if the undelegate period decreases, we need to find the correct position to insert the new operation.
+        uint64 undelegateEpoch = beforeEpoch + _chainConfigContract.getUndelegatePeriod();
+        if (delegation.undelegateQueue.length == 0 || delegation.undelegateQueue[delegation.undelegateQueue.length-1].epoch < undelegateEpoch) {
+            delegation.undelegateQueue.push(DelegationOpUndelegate({amount : _packCompact(amount), epoch : undelegateEpoch}));
+        } else if (delegation.undelegateQueue[delegation.undelegateQueue.length-1].epoch == undelegateEpoch) {
+            delegation.undelegateQueue[delegation.undelegateQueue.length-1].amount += _packCompact(amount);
+        } else {
+            // find insert position
+            uint256 pos = delegation.undelegateGap;
+            while (pos < delegation.undelegateQueue.length && delegation.undelegateQueue[pos].epoch < undelegateEpoch) {
+                pos++;
+            }
+
+            // Expand array with a dummy value and shift elements in [pos,len-1] range to make space for the new insertion
+            delegation.undelegateQueue.push(DelegationOpUndelegate(0,0));
+            for (uint256 i = delegation.undelegateQueue.length - 1; i > pos; i--) {
+                delegation.undelegateQueue[i] = delegation.undelegateQueue[i - 1];
+            }
+            delegation.undelegateQueue[pos] = DelegationOpUndelegate({amount : _packCompact(amount), epoch : undelegateEpoch});
+        }
         // emit event with the next epoch number
         emit Undelegated(fromValidator, toDelegator, amount, beforeEpoch);
     }
@@ -412,8 +467,15 @@ contract Staking is IStaking, InjectorContextHolder {
                 delegation.delegateQueue[delegateGap] = delegateOp;
                 break;
             }
-            delete delegation.delegateQueue[delegateGap];
-            ++delegateGap;
+
+            if (beforeEpochExclude <= voteChangedAtEpoch) {
+                // Partially processed. Stay on the last item, but with updated latest processed epoch
+                delegation.delegateQueue[delegateGap] = delegateOp;
+            } else {
+                // Fully processed, the delegation can be deleted from queue.
+                delete delegation.delegateQueue[delegateGap];
+                ++delegateGap;
+            }
         }
         delegation.delegateGap = delegateGap;
         return availableFunds;
@@ -478,12 +540,16 @@ contract Staking is IStaking, InjectorContextHolder {
             ValidatorSnapshot memory validatorSnapshot = _validatorSnapshots[validator.validatorAddress][claimAt];
             (/*uint256 delegatorFee*/, uint256 ownerFee, uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
             availableFunds += ownerFee;
-            systemFee += slashingFee;
+            if (claimAt >= _systemFeeClaimedAt[validator.validatorAddress]){
+                systemFee += slashingFee;
+                _systemFeeClaimedAt[validator.validatorAddress] = claimAt + 1;
+            }
         }
         validator.claimedAt = claimAt;
         _safeTransferWithGasLimit(payable(validator.ownerAddress), availableFunds);
-        // if we have system fee then pay it to treasury account
-        _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
+        if (systemFee > 0) {
+            _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
+        }
         emit ValidatorOwnerClaimed(validator.validatorAddress, availableFunds, beforeEpoch);
     }
 
@@ -688,7 +754,7 @@ contract Staking is IStaking, InjectorContextHolder {
         return orderedValidators;
     }
 
-    function deposit(address validatorAddress) external payable onlyFromCoinbaseOrTokenomics onlyZeroGasPrice virtual override {
+    function deposit(address validatorAddress) external payable onlyFromCoinbaseOrTokenomicsOrStakingPool onlyZeroGasPrice virtual override {
         _depositFee(validatorAddress);
     }
 
@@ -737,6 +803,7 @@ contract Staking is IStaking, InjectorContextHolder {
     function claimValidatorFee(address validatorAddress) external override {
         // make sure validator exists at least
         Validator storage validator = _validatorsMap[validatorAddress];
+        // only validator owner can claim deposit fee
         require(validator.status != ValidatorStatus.NotFound, "nf"); // not found
         // claim all validator fees
         _claimValidatorOwnerRewards(validator, _currentEpoch());
@@ -745,6 +812,7 @@ contract Staking is IStaking, InjectorContextHolder {
     function claimValidatorFeeAtEpoch(address validatorAddress, uint64 beforeEpoch) external override {
         // make sure validator exists at least
         Validator storage validator = _validatorsMap[validatorAddress];
+        // only validator owner can claim deposit fee
         require(validator.status != ValidatorStatus.NotFound, "nf"); // not found
         // we disallow to claim rewards from future epochs
         require(beforeEpoch <= _currentEpoch());
@@ -801,8 +869,8 @@ contract Staking is IStaking, InjectorContextHolder {
         _transferDelegatorRewards(validatorAddress, msg.sender, beforeEpoch, true, true);
     }
 
-    function _safeTransferWithGasLimit(address payable recipient, uint256 amount) internal {
-        (bool success,) = recipient.call{value : amount, gas : TRANSFER_GAS_LIMIT}("");
+    function _safeTransferWithGasLimit(address recipient, uint256 amount) internal {
+        (bool success,) = recipient.call{value : amount, gas : 50_000}("");
         require(success, "tf"); // transfer failed
     }
 
@@ -841,6 +909,21 @@ contract Staking is IStaking, InjectorContextHolder {
     function togglePause() external onlyFromGovernance virtual {
         _paused = !_paused;
         emit Paused(_paused);
+    }
+
+    function claimSystemFee(address validatorAddress, uint64 beforeEpoch) external {
+        uint256 systemFee = 0;
+        Validator storage validator = _validatorsMap[validatorAddress];
+        uint64 claimAt = _systemFeeClaimedAt[validatorAddress];
+        for (; claimAt < beforeEpoch; claimAt++) {
+            ValidatorSnapshot storage validatorSnapshot = _validatorSnapshots[validator.validatorAddress][claimAt];
+            (,,uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
+            systemFee += slashingFee;
+        }
+        _systemFeeClaimedAt[validator.validatorAddress] = claimAt;
+        // if we have system fee then pay it to treasury account
+        _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
+        emit SystemFeeClaimed(validator.validatorAddress, systemFee, beforeEpoch);
     }
 
     function _createOpDelegate(DelegationOpDelegate[] storage delegateQueue, uint64 epoch, uint112 amount) internal {

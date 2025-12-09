@@ -19,7 +19,7 @@ import "../contracts/interfaces/ITokenomics.sol";
 import {Staking} from "../contracts/Staking.sol";
 import {ChainConfig} from "../contracts/ChainConfig.sol";
 
-contract StakingSherlock19 is Test {
+contract StakingSherlock71 is Test {
     Staking public staking;
     ChainConfig public chainConfig;
     uint16 public constant EPOCH_LEN = 100;
@@ -27,23 +27,22 @@ contract StakingSherlock19 is Test {
     function setUp() public {
         bytes memory ctorChainConfig = abi.encodeWithSignature(
             "ctor(uint32,uint32,uint32,uint32,uint32,uint32,uint256,uint256)",
-            1, // number of main validators
+            5, // number of main validators
             EPOCH_LEN, // epoch len
             50, // misdemeanorThreshold
             75, // felonyThreshold
             1, // validatorJailEpochLength
             1, // undelegatePeriod
-            1000 ether, // minValidatorStakeAmount
-            1 ether // minStakingAmount
+            0, // minValidatorStakeAmount
+            0 // minStakingAmount
         );
         chainConfig = new ChainConfig(ctorChainConfig);
 
         address[] memory valAddrArray = new address[](1);
         valAddrArray[0] = vm.addr(5);
         uint256[] memory initialStakeArray = new uint256[](1);
-        initialStakeArray[0] = 100000 ether;
 
-        bytes memory ctorStaking = abi.encodeWithSignature("ctor(address[],uint256[],uint16)", valAddrArray, initialStakeArray, 3000);
+        bytes memory ctorStaking = abi.encodeWithSignature("ctor(address[],uint256[],uint16)", valAddrArray, initialStakeArray, 0);
         staking = new Staking(ctorStaking);
 
         IStaking stakingContract = IStaking(staking);
@@ -68,7 +67,7 @@ contract StakingSherlock19 is Test {
             tokenomicsContract
         );
 
-        vm.deal(address(staking), 100000 ether);
+        // vm.deal(address(staking), 100000 ether);
         staking.initManually(
             stakingContract,
             slashingIndicatorContract,
@@ -82,61 +81,35 @@ contract StakingSherlock19 is Test {
         );
     }
 
-    function test_claimSystemFee() public {
-        vm.roll(block.number + EPOCH_LEN);
+    function test_UserCannotClaimUndelegatesAtTheExpectedEpoch() public {
+        // Undelegate Period is 14 epochs
+        vm.prank(vm.addr(20));
+        chainConfig.setUndelegatePeriod(14);
 
-        // simulate reward distribution
-        vm.deal(block.coinbase, 10 ether);
-        vm.prank(block.coinbase);
-        staking.deposit{value: 10 ether}(vm.addr(5));
+        address alice = makeAddr("Alice");
+        deal(alice, 2 ether);
 
-        // slash the validator `misdemeanorThreshold` times
-        for (uint256 i = 0; i < 50; i++) {
-            vm.prank(vm.addr(20));
-            staking.slash(vm.addr(5));
-        }
+        vm.prank(alice);
+        staking.delegate{value: 2 ether}(vm.addr(5));
 
-        // claim the system fee & make sure that systemRewards received the funds
-        staking.claimSystemFee(vm.addr(5), 2);
+        // Alice undelegates
+        vm.prank(alice);
+        staking.undelegate(vm.addr(5), 1 ether);
 
-        assertEq(vm.addr(20).balance, 10 ether);
-    }
+        // Undelegate Period is updated to 7 epochs
+        vm.prank(vm.addr(20));
+        chainConfig.setUndelegatePeriod(7);
 
-    /// @notice calling claimValidatorFee() after claimSystemFee() shouldn't double count the system fee
-    function test_claimSystemFee_DoubleCount() public {
-        vm.roll(block.number + EPOCH_LEN);
+        // Alice undelegates again
+        vm.prank(alice);
+        staking.undelegate(vm.addr(5), 1 ether);
 
-        // simulate reward distribution for epoch 2
-        vm.deal(block.coinbase, 20 ether);
-        vm.prank(block.coinbase);
-        staking.deposit{value: 10 ether}(vm.addr(5));
+        vm.roll(block.number + 8 * EPOCH_LEN);
 
-        // go to epoch 3
-        vm.roll(block.number + 2*EPOCH_LEN);
+        // Alice claims pending undelegates and should receive 1 ether from first undelegate operation
+        vm.prank(alice);
+        staking.claimPendingUndelegates(vm.addr(5));
 
-        // simulate reward distribution for epoch 3
-        vm.deal(block.coinbase, 10 ether);
-        vm.prank(block.coinbase);
-        staking.deposit{value: 10 ether}(vm.addr(5));
-
-        // slash the validator `misdemeanorThreshold` times in epoch 3
-        for (uint256 i = 0; i < 50; i++) {
-            vm.prank(vm.addr(20));
-            staking.slash(vm.addr(5));
-        }
-
-        // go to epoch 4
-        vm.roll(block.number + EPOCH_LEN);
-
-        // claim the system fee & make sure that systemRewards received the funds
-        staking.claimSystemFee(vm.addr(5), 4);
-
-        assertEq(vm.addr(20).balance, 10 ether);
-
-        // claim the validator fee & make sure that the validator received the funds and systemRewards balance didn't change
-        vm.prank(vm.addr(5));
-        staking.claimValidatorFeeAtEpoch(vm.addr(5), 4);
-        assertEq(vm.addr(5).balance, 10 ether * 3000/10000);
-        assertEq(vm.addr(20).balance, 10 ether);
+        assertEq(alice.balance, 1 ether);
     }
 }
