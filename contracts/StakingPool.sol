@@ -30,6 +30,11 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
     mapping(address => mapping(address => PendingUnstake)) internal _pendingUnstakes;
     // allocated shares (validator => staker => shares)
     mapping(address => mapping(address => uint256)) internal _stakerShares;
+    // accounts that unstaked tokens after #125 was applied.
+    // this is needed to correctly decrement the variables for users that unstaked prior
+    // to the change.
+    // (staker => bool)
+    mapping(address => bool) internal _unstakedPostSherlockSupplyFixUpdate;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
@@ -138,7 +143,11 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
         epoch : _nextEpoch() + _chainConfigContract.getUndelegatePeriod()
         });
         validatorPool.pendingUnstake += amount;
+        validatorPool.sharesSupply -= shares;
+        validatorPool.totalStakedAmount -= amount;
         _validatorPools[validator] = validatorPool;
+        _stakerShares[validator][msg.sender] -= shares; //double check this
+        _unstakedPostSherlockSupplyFixUpdate[msg.sender] = true;
         // undelegate
         _stakingContract.undelegate(validator, amount);
         // emit event
@@ -159,10 +168,12 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
         require(pendingUnstake.epoch > 0, "StakingPool: nothing to claim");
         require(pendingUnstake.epoch <= _currentEpoch(), "StakingPool: not ready");
         // updates shares and validator pool params
-        _stakerShares[validator][msg.sender] -= shares;
         ValidatorPool memory validatorPool = _getValidatorPool(validator);
-        validatorPool.sharesSupply -= shares;
-        validatorPool.totalStakedAmount -= amount;
+        if (!_unstakedPostSherlockSupplyFixUpdate[msg.sender]) {
+            _stakerShares[validator][msg.sender] -= shares; //double check this
+            validatorPool.sharesSupply -= shares;
+            validatorPool.totalStakedAmount -= amount;
+        }
         validatorPool.pendingUnstake -= amount;
         _validatorPools[validator] = validatorPool;
         // remove pending claim
