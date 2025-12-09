@@ -39,6 +39,14 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
     function ctor() external onlyInitializing {
     }
 
+    /// @notice Sets unstakedPostSherlockSupplyFixUpdate for zero address to true.
+    ///         The staking UI and API will use this storage slot to determine whether
+    ///         the Sherlock #125 fix is applied and whether the pending stake should
+    ///         be subtracted from the total stake.
+    function setUnstakedPostSherlockSupplyFixUpdate() external onlyFromRuntimeUpgrade {
+        _unstakedPostSherlockSupplyFixUpdate[address(0)] = true;
+    }
+
     function getStakedAmount(address validator, address staker) external view returns (uint256) {
         ValidatorPool memory validatorPool = _getValidatorPool(validator);
         return _stakerShares[validator][staker] * 1e18 / _calcRatio(validatorPool);
@@ -75,7 +83,7 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
             // increase total accumulated rewards
             validatorPool.totalStakedAmount += amountToStake;
             validatorPool.dustRewards += dustRewards;
-            
+
             // Handle dust rewards if they exceed 500 CHZ
             if (validatorPool.dustRewards >= 500 * 1e18) {
                 uint256 amountToDeposit = validatorPool.dustRewards;
@@ -83,7 +91,7 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
                 // Deposit dust rewards to the staking contract
                 _stakingContract.deposit{value: amountToDeposit}(validator);
             }
-            
+
             // save validator pool changes
             _validatorPools[validator] = validatorPool;
         }
