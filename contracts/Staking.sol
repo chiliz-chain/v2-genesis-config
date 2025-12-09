@@ -748,7 +748,7 @@ contract Staking is IStaking, InjectorContextHolder {
         return orderedValidators;
     }
 
-    function deposit(address validatorAddress) external payable onlyFromCoinbaseOrTokenomics onlyZeroGasPrice virtual override {
+    function deposit(address validatorAddress) external payable onlyFromCoinbaseOrTokenomicsOrStakingPool onlyZeroGasPrice virtual override {
         _depositFee(validatorAddress);
     }
 
