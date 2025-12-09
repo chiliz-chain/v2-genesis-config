@@ -9,3 +9,4 @@ coverage
 coverage.json
 out/
 snapshots/
+.env
