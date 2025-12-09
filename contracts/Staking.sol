@@ -379,27 +379,31 @@ contract Staking is IStaking, InjectorContextHolder {
             // there is no pending delegations, so lets create the new one with the new amount
             _createOpDelegate(delegation.delegateQueue, beforeEpoch, nextDelegatedAmount);
         }
-
-        uint64 epochUndelegate = beforeEpoch + _chainConfigContract.getUndelegatePeriod();
-        uint64 epochInQueue = 0;
-
-        if (delegation.undelegateQueue.length > 0) {
-            epochInQueue = delegation.undelegateQueue[delegation.undelegateQueue.length - 1].epoch;
-        }
-
-        if (epochUndelegate > epochInQueue) {
-            // if the epoch for that undelegate is greater than the last undelegate operation
-            // then create new one
-            delegation.undelegateQueue.push(
-                DelegationOpUndelegate({amount: _packCompact(amount), epoch: epochUndelegate})
-            );
+        // create new undelegate queue operation with soft lock
+        // Unless the undelegate period changes, the undelegateQueue is sorted by epoch in ascending order.
+        // Considering the above, if undelegate period increases,
+        // the `epoch` of the last operation in the queue will be less than or equal to the new operation's `epoch`.
+        // In this case we can safely push the new operation to the end of the queue.
+        // However, if the undelegate period decreases, we need to find the correct position to insert the new operation.
+        uint64 undelegateEpoch = beforeEpoch + _chainConfigContract.getUndelegatePeriod();
+        if (delegation.undelegateQueue.length == 0 || delegation.undelegateQueue[delegation.undelegateQueue.length-1].epoch < undelegateEpoch) {
+            delegation.undelegateQueue.push(DelegationOpUndelegate({amount : _packCompact(amount), epoch : undelegateEpoch}));
+        } else if (delegation.undelegateQueue[delegation.undelegateQueue.length-1].epoch == undelegateEpoch) {
+            delegation.undelegateQueue[delegation.undelegateQueue.length-1].amount += _packCompact(amount);
         } else {
-            // else let's update the last undelate op
-            DelegationOpUndelegate storage undelegateOp =
-                delegation.undelegateQueue[delegation.undelegateQueue.length - 1];
-            undelegateOp.amount += _packCompact(amount);
-        }
+            // find insert position
+            uint256 pos = delegation.undelegateGap;
+            while (pos < delegation.undelegateQueue.length && delegation.undelegateQueue[pos].epoch < undelegateEpoch) {
+                pos++;
+            }
 
+            // Expand array with a dummy value and shift elements in [pos,len-1] range to make space for the new insertion
+            delegation.undelegateQueue.push(DelegationOpUndelegate(0,0));
+            for (uint256 i = delegation.undelegateQueue.length - 1; i > pos; i--) {
+                delegation.undelegateQueue[i] = delegation.undelegateQueue[i - 1];
+            }
+            delegation.undelegateQueue[pos] = DelegationOpUndelegate({amount : _packCompact(amount), epoch : undelegateEpoch});
+        }
         // emit event with the next epoch number
         emit Undelegated(fromValidator, toDelegator, amount, beforeEpoch);
     }
@@ -786,6 +790,7 @@ contract Staking is IStaking, InjectorContextHolder {
     function claimValidatorFee(address validatorAddress) external override {
         // make sure validator exists at least
         Validator storage validator = _validatorsMap[validatorAddress];
+        // only validator owner can claim deposit fee
         require(validator.status != ValidatorStatus.NotFound, "nf"); // not found
         // claim all validator fees
         _claimValidatorOwnerRewards(validator, _currentEpoch());
@@ -794,6 +799,7 @@ contract Staking is IStaking, InjectorContextHolder {
     function claimValidatorFeeAtEpoch(address validatorAddress, uint64 beforeEpoch) external override {
         // make sure validator exists at least
         Validator storage validator = _validatorsMap[validatorAddress];
+        // only validator owner can claim deposit fee
         require(validator.status != ValidatorStatus.NotFound, "nf"); // not found
         // we disallow to claim rewards from future epochs
         require(beforeEpoch <= _currentEpoch());
