@@ -11,6 +11,7 @@ interface IChainConfig {
     function getEpochBlockInterval() external view returns (uint32);
 
     function getMisdemeanorThreshold() external view returns (uint32);
+    function getMisdemeanorThreshold(uint64 epoch) external view returns (uint32);
 
     function setMisdemeanorThreshold(uint32 newValue) external;
 

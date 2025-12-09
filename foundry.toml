@@ -10,5 +10,6 @@ remappings = [
     "forge-std/=lib/forge-std/src/",
 ]
 # gas_limit = "18446744073709551615"
+fs_permissions = [{ access = "read", path = "./out"}]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
