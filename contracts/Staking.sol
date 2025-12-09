@@ -349,8 +349,27 @@ contract Staking is IStaking, InjectorContextHolder {
             // there is no pending delegations, so lets create the new one with the new amount
             _createOpDelegate(delegation.delegateQueue, beforeEpoch, nextDelegatedAmount);
         }
-        // create new undelegate queue operation with soft lock
-        delegation.undelegateQueue.push(DelegationOpUndelegate({amount : _packCompact(amount), epoch : beforeEpoch + _chainConfigContract.getUndelegatePeriod()}));
+
+        uint64 epochUndelegate = beforeEpoch + _chainConfigContract.getUndelegatePeriod();
+        uint64 epochInQueue = 0;
+
+        if (delegation.undelegateQueue.length > 0) {
+            epochInQueue = delegation.undelegateQueue[delegation.undelegateQueue.length - 1].epoch;
+        }
+
+        if (epochUndelegate > epochInQueue) {
+            // if the epoch for that undelegate is greater than the last undelegate operation
+            // then create new one
+            delegation.undelegateQueue.push(
+                DelegationOpUndelegate({amount: _packCompact(amount), epoch: epochUndelegate})
+            );
+        } else {
+            // else let's update the last undelate op
+            DelegationOpUndelegate storage undelegateOp =
+                delegation.undelegateQueue[delegation.undelegateQueue.length - 1];
+            undelegateOp.amount += _packCompact(amount);
+        }
+
         // emit event with the next epoch number
         emit Undelegated(fromValidator, toDelegator, amount, beforeEpoch);
     }
