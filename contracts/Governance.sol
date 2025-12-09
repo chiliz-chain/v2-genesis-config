@@ -134,19 +134,22 @@ contract Governance is InjectorContextHolder, GovernorCountingSimpleUpgradeable,
     function _validatorVotingPowerAt(address validator, uint256 blockNumber) internal view returns (uint256) {
         // find validator votes at block number
         uint64 epoch = uint64(blockNumber / _chainConfigContract.getEpochBlockInterval());
-        (,uint8 status, uint256 totalDelegated,,,,,,) = _stakingContract.getValidatorStatusAtEpoch(validator, epoch);
-        // only active validators power makes sense
-        if (status != 0x01) {
-            return 0;
-        }
+        return _validatorVotingPowerAtEpoch(validator, epoch);
+    }
+
+    function _validatorVotingPowerAtEpoch(address validator, uint64 epoch) internal view returns (uint256) {
+        // find validator votes at block number
+        (,, uint256 totalDelegated,,,,,,) = _stakingContract.getValidatorStatusAtEpoch(validator, epoch);
         // use total delegated amount is a voting power
         return totalDelegated;
     }
 
     function _votingSupply(uint256 blockNumber) internal view returns (uint256 votingSupply) {
-        address[] memory validators = _stakingContract.getValidators();
+        uint64 epoch = uint64(blockNumber / _chainConfigContract.getEpochBlockInterval());
+        // Note: getValidatorsAtEpoch returns list of active main validators at epoch
+        address[] memory validators = _stakingContract.getValidatorsAtEpoch(epoch);
         for (uint256 i = 0; i < validators.length; i++) {
-            votingSupply += _validatorVotingPowerAt(validators[i], blockNumber);
+            votingSupply += _validatorVotingPowerAtEpoch(validators[i], epoch);
         }
         return votingSupply;
     }

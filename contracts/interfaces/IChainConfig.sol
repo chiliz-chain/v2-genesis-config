@@ -4,12 +4,14 @@ pragma solidity ^0.8.0;
 interface IChainConfig {
 
     function getActiveValidatorsLength() external view returns (uint32);
+    function getActiveValidatorsLength(uint64 epoch) external view returns (uint32);
 
     function setActiveValidatorsLength(uint32 newValue) external;
 
     function getEpochBlockInterval() external view returns (uint32);
 
     function getMisdemeanorThreshold() external view returns (uint32);
+    function getMisdemeanorThreshold(uint64 epoch) external view returns (uint32);
 
     function setMisdemeanorThreshold(uint32 newValue) external;
 

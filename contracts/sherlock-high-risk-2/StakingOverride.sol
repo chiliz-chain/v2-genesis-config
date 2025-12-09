@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.0;
 
-import "./Injector.sol";
+import "../../contracts/Injector.sol";
 
+/// StakingOverride contract used to bypass the local tx simulation issue of foundry.
+/// This is basically Staking from v2.3.0 with an empty initNewParams() function added to it
+/// and is used by SherlockHighRisk2.s.sol
 
-contract Staking is IStaking, InjectorContextHolder {
+contract StakingOverride is InjectorContextHolder {
+
     /**
      * This constant indicates precision of storing compact balances in the storage or floating point. Since default
      * balance precision is 256 bits it might gain some overhead on the storage because we don't need to store such huge
@@ -108,13 +112,6 @@ contract Staking is IStaking, InjectorContextHolder {
         uint64 undelegateGap;
     }
 
-    struct EpochToActiveValidatorsList {
-        // (epoch => list of active validators)
-        mapping(uint64 => address[]) value;
-        // list of available epochs, sorted in asc order.
-        uint64[] epochs;
-    }
-
     // mapping from validator address to validator
     mapping(address => Validator) internal _validatorsMap;
     // mapping from validator owner to validator address
@@ -127,14 +124,6 @@ contract Staking is IStaking, InjectorContextHolder {
     mapping(address => mapping(uint64 => ValidatorSnapshot)) internal _validatorSnapshots;
 
     bool internal _paused;
-
-    // mapping with validator addresses and epochs where the system fee was claimed (validator -> epoch)
-    mapping(address => uint64) internal _systemFeeClaimedAt;
-    EpochToActiveValidatorsList internal _activeValidatorsListPerEpoch;
-
-    // mapping with validator addresses and the block.timestamp upon addition (validator -> timestamp)
-    // used for chronological sorting in _getValidators()
-    mapping(address => uint256) internal _validatorAdditionTs;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
@@ -149,27 +138,9 @@ contract Staking is IStaking, InjectorContextHolder {
         require(address(this).balance == totalStakes, "bm"); // balance mismatch
     }
 
-    /// @notice Initialize active validators list per epoch and validator addition timestamps mappings.
-    function initNewParams() public onlyFromRuntimeUpgrade {
-        require(_activeValidatorsListPerEpoch.epochs.length == 0, "AI"); // already initialized
+    function initNewParams() public {}
 
-        // copy _activeValidatorsList to epoch 0 and to current epoch
-        _activeValidatorsListPerEpoch.value[0] = _activeValidatorsList;
-        _activeValidatorsListPerEpoch.epochs.push(0);
-        uint64 e = _currentEpoch();
-        if (e > 0) {
-            _activeValidatorsListPerEpoch.value[e] = _activeValidatorsList;
-            _activeValidatorsListPerEpoch.epochs.push(e);
-        }
-
-        address[] memory avl = getActiveValidatorsList(_currentEpoch());
-        uint64 i;
-        for (; i < avl.length; ++i) {
-            _validatorAdditionTs[_activeValidatorsList[i]] = block.timestamp;
-        }
-    }
-
-    function getValidatorDelegation(address validatorAddress, address delegator) external view override returns (
+    function getValidatorDelegation(address validatorAddress, address delegator) external view returns (
         uint256 delegatedAmount,
         uint64 atEpoch
     ) {
@@ -181,7 +152,7 @@ contract Staking is IStaking, InjectorContextHolder {
         return (_unpackCompact(snapshot.amount), snapshot.epoch);
     }
 
-    function getValidatorStatus(address validatorAddress) external view override returns (
+    function getValidatorStatus(address validatorAddress) external view returns (
         address ownerAddress,
         uint8 status,
         uint256 totalDelegated,
@@ -233,7 +204,7 @@ contract Staking is IStaking, InjectorContextHolder {
         );
     }
 
-    function getValidatorByOwner(address owner) external view override returns (address) {
+    function getValidatorByOwner(address owner) external view returns (address) {
         return _validatorOwners[owner];
     }
 
@@ -247,21 +218,21 @@ contract Staking is IStaking, InjectorContextHolder {
         // update validator status
         validator.status = ValidatorStatus.Active;
         _validatorsMap[validatorAddress] = validator;
-        _addValidatorToActiveValidatorsList(validatorAddress, _nextEpoch());
+        _activeValidatorsList.push(validatorAddress);
         // emit event
         emit ValidatorReleased(validatorAddress, _currentEpoch());
     }
 
-    function _totalDelegatedToValidator(Validator memory validator, uint64 epoch) internal view returns (uint256) {
-        ValidatorSnapshot memory s = _fetchValidatorSnapshot(validator, epoch);
-        return _unpackCompact(s.totalDelegated);
+    function _totalDelegatedToValidator(Validator memory validator) internal view returns (uint256) {
+        ValidatorSnapshot memory snapshot = _validatorSnapshots[validator.validatorAddress][validator.changedAt];
+        return _unpackCompact(snapshot.totalDelegated);
     }
 
-    function delegate(address validatorAddress) payable external override {
+    function delegate(address validatorAddress) payable external {
         _delegateTo(msg.sender, validatorAddress, msg.value);
     }
 
-    function undelegate(address validatorAddress, uint256 amount) external override {
+    function undelegate(address validatorAddress, uint256 amount) external {
         _undelegateFrom(msg.sender, validatorAddress, amount);
     }
 
@@ -281,23 +252,14 @@ contract Staking is IStaking, InjectorContextHolder {
         return _currentEpoch() + 1;
     }
 
-    function _touchValidatorSnapshot(Validator memory validator, uint64 epoch)
-        internal
-        returns (ValidatorSnapshot storage)
-    {
+    function _touchValidatorSnapshot(Validator memory validator, uint64 epoch) internal returns (ValidatorSnapshot storage) {
         ValidatorSnapshot storage snapshot = _validatorSnapshots[validator.validatorAddress][epoch];
         // if snapshot is already initialized then just return it
         if (snapshot.totalDelegated > 0) {
             return snapshot;
         }
-
-        uint64 EpochToCopyFrom = validator.changedAt;
-        if (epoch < validator.changedAt) {
-            EpochToCopyFrom = findLatestSnapshotBefore(validator.validatorAddress, epoch);
-        }
-
         // find previous snapshot to copy parameters from it
-        ValidatorSnapshot memory lastModifiedSnapshot = _validatorSnapshots[validator.validatorAddress][EpochToCopyFrom];
+        ValidatorSnapshot memory lastModifiedSnapshot = _validatorSnapshots[validator.validatorAddress][validator.changedAt];
         // last modified snapshot might store zero value, for first delegation it might happen and its not critical
         snapshot.totalDelegated = lastModifiedSnapshot.totalDelegated;
         snapshot.commissionRate = lastModifiedSnapshot.commissionRate;
@@ -307,26 +269,6 @@ contract Staking is IStaking, InjectorContextHolder {
             validator.changedAt = epoch;
         }
         return snapshot;
-    }
-
-    function findLatestSnapshotBefore(address validatorAddress, uint64 epoch) internal view returns (uint64) {
-        // Adding a security check to avoid consuming too much gas
-        uint8 MAX_NB_EPOCH_TO_CHECK = 50;
-
-        uint64 latestEpoch = 0;
-        uint64 i;
-        for (i = 0; i <= MAX_NB_EPOCH_TO_CHECK; i++) {
-            uint64 e = epoch - i;
-            if (_validatorSnapshots[validatorAddress][e].totalDelegated > 0) {
-                latestEpoch = e;
-                break;
-            }
-        }
-        if (i > MAX_NB_EPOCH_TO_CHECK) {
-            return epoch;
-        }
-
-        return latestEpoch;
     }
 
     function _fetchValidatorSnapshot(Validator memory validator, uint64 epoch) internal view returns (ValidatorSnapshot memory) {
@@ -414,30 +356,7 @@ contract Staking is IStaking, InjectorContextHolder {
             _createOpDelegate(delegation.delegateQueue, beforeEpoch, nextDelegatedAmount);
         }
         // create new undelegate queue operation with soft lock
-        // Unless the undelegate period changes, the undelegateQueue is sorted by epoch in ascending order.
-        // Considering the above, if undelegate period increases,
-        // the `epoch` of the last operation in the queue will be less than or equal to the new operation's `epoch`.
-        // In this case we can safely push the new operation to the end of the queue.
-        // However, if the undelegate period decreases, we need to find the correct position to insert the new operation.
-        uint64 undelegateEpoch = beforeEpoch + _chainConfigContract.getUndelegatePeriod();
-        if (delegation.undelegateQueue.length == 0 || delegation.undelegateQueue[delegation.undelegateQueue.length-1].epoch < undelegateEpoch) {
-            delegation.undelegateQueue.push(DelegationOpUndelegate({amount : _packCompact(amount), epoch : undelegateEpoch}));
-        } else if (delegation.undelegateQueue[delegation.undelegateQueue.length-1].epoch == undelegateEpoch) {
-            delegation.undelegateQueue[delegation.undelegateQueue.length-1].amount += _packCompact(amount);
-        } else {
-            // find insert position
-            uint256 pos = delegation.undelegateGap;
-            while (pos < delegation.undelegateQueue.length && delegation.undelegateQueue[pos].epoch < undelegateEpoch) {
-                pos++;
-            }
-
-            // Expand array with a dummy value and shift elements in [pos,len-1] range to make space for the new insertion
-            delegation.undelegateQueue.push(DelegationOpUndelegate(0,0));
-            for (uint256 i = delegation.undelegateQueue.length - 1; i > pos; i--) {
-                delegation.undelegateQueue[i] = delegation.undelegateQueue[i - 1];
-            }
-            delegation.undelegateQueue[pos] = DelegationOpUndelegate({amount : _packCompact(amount), epoch : undelegateEpoch});
-        }
+        delegation.undelegateQueue.push(DelegationOpUndelegate({amount : _packCompact(amount), epoch : beforeEpoch + _chainConfigContract.getUndelegatePeriod()}));
         // emit event with the next epoch number
         emit Undelegated(fromValidator, toDelegator, amount, beforeEpoch);
     }
@@ -491,7 +410,7 @@ contract Staking is IStaking, InjectorContextHolder {
                 if (validatorSnapshot.totalDelegated == 0) {
                     continue;
                 }
-                (uint256 delegatorFee, /*uint256 ownerFee*/, /*uint256 systemFee*/) = _calcValidatorSnapshotEpochPayout(validatorSnapshot, delegateOp.epoch);
+                (uint256 delegatorFee, /*uint256 ownerFee*/, /*uint256 systemFee*/) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
                 availableFunds += delegatorFee * delegateOp.amount / validatorSnapshot.totalDelegated;
             }
             // if we have reached end of the delegation list then lets stay on the last item, but with updated latest processed epoch
@@ -499,15 +418,8 @@ contract Staking is IStaking, InjectorContextHolder {
                 delegation.delegateQueue[delegateGap] = delegateOp;
                 break;
             }
-
-            if (beforeEpochExclude <= voteChangedAtEpoch) {
-                // Partially processed. Stay on the last item, but with updated latest processed epoch
-                delegation.delegateQueue[delegateGap] = delegateOp;
-            } else {
-                // Fully processed, the delegation can be deleted from queue.
-                delete delegation.delegateQueue[delegateGap];
-                ++delegateGap;
-            }
+            delete delegation.delegateQueue[delegateGap];
+            ++delegateGap;
         }
         delegation.delegateGap = delegateGap;
         return availableFunds;
@@ -546,7 +458,7 @@ contract Staking is IStaking, InjectorContextHolder {
                 if (validatorSnapshot.totalDelegated == 0) {
                     continue;
                 }
-                (uint256 delegatorFee, /*uint256 ownerFee*/, /*uint256 systemFee*/) = _calcValidatorSnapshotEpochPayout(validatorSnapshot, delegateOp.epoch);
+                (uint256 delegatorFee, /*uint256 ownerFee*/, /*uint256 systemFee*/) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
                 availableFunds += delegatorFee * delegateOp.amount / validatorSnapshot.totalDelegated;
             }
             ++delegation.delegateGap;
@@ -570,18 +482,14 @@ contract Staking is IStaking, InjectorContextHolder {
         uint64 claimAt = validator.claimedAt;
         for (; claimAt < beforeEpoch; claimAt++) {
             ValidatorSnapshot memory validatorSnapshot = _validatorSnapshots[validator.validatorAddress][claimAt];
-            (/*uint256 delegatorFee*/, uint256 ownerFee, uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot, claimAt);
+            (/*uint256 delegatorFee*/, uint256 ownerFee, uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
             availableFunds += ownerFee;
-            if (claimAt >= _systemFeeClaimedAt[validator.validatorAddress]){
-                systemFee += slashingFee;
-                _systemFeeClaimedAt[validator.validatorAddress] = claimAt + 1;
-            }
+            systemFee += slashingFee;
         }
         validator.claimedAt = claimAt;
         _safeTransferWithGasLimit(payable(validator.ownerAddress), availableFunds);
-        if (systemFee > 0) {
-            _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
-        }
+        // if we have system fee then pay it to treasury account
+        _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
         emit ValidatorOwnerClaimed(validator.validatorAddress, availableFunds, beforeEpoch);
     }
 
@@ -589,15 +497,15 @@ contract Staking is IStaking, InjectorContextHolder {
         uint256 availableFunds = 0;
         for (; validator.claimedAt < beforeEpoch; validator.claimedAt++) {
             ValidatorSnapshot memory validatorSnapshot = _validatorSnapshots[validator.validatorAddress][validator.claimedAt];
-            (/*uint256 delegatorFee*/, uint256 ownerFee, /*uint256 systemFee*/) = _calcValidatorSnapshotEpochPayout(validatorSnapshot, validator.claimedAt);
+            (/*uint256 delegatorFee*/, uint256 ownerFee, /*uint256 systemFee*/) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
             availableFunds += ownerFee;
         }
         return availableFunds;
     }
 
-    function _calcValidatorSnapshotEpochPayout(ValidatorSnapshot memory validatorSnapshot, uint64 epoch) internal view returns (uint256 delegatorFee, uint256 ownerFee, uint256 systemFee) {
+    function _calcValidatorSnapshotEpochPayout(ValidatorSnapshot memory validatorSnapshot) internal view returns (uint256 delegatorFee, uint256 ownerFee, uint256 systemFee) {
         // detect validator slashing to transfer all rewards to treasury
-        if (validatorSnapshot.slashesCount >= _chainConfigContract.getMisdemeanorThreshold(epoch)) {
+        if (validatorSnapshot.slashesCount >= _chainConfigContract.getMisdemeanorThreshold()) {
             return (delegatorFee = 0, ownerFee = 0, systemFee = validatorSnapshot.totalRewards);
         } else if (validatorSnapshot.totalDelegated == 0) {
             return (delegatorFee = 0, ownerFee = validatorSnapshot.totalRewards, systemFee = 0);
@@ -610,7 +518,7 @@ contract Staking is IStaking, InjectorContextHolder {
         systemFee = 0;
     }
 
-    function registerValidator(address validatorAddress, uint16 commissionRate) payable external override {
+    function registerValidator(address validatorAddress, uint16 commissionRate) payable external {
         uint256 initialStake = msg.value;
         // // initial stake amount should be greater than minimum validator staking amount
         require(initialStake >= _chainConfigContract.getMinValidatorStakeAmount(), "tl"); // initial stake too low
@@ -619,7 +527,7 @@ contract Staking is IStaking, InjectorContextHolder {
         _addValidator(validatorAddress, msg.sender, ValidatorStatus.Pending, commissionRate, initialStake, _nextEpoch());
     }
 
-    function addValidator(address account) external onlyFromGovernance virtual override {
+    function addValidator(address account) external onlyFromGovernance virtual {
         _addValidator(account, account, ValidatorStatus.Active, 0, 0, _nextEpoch());
     }
 
@@ -639,7 +547,7 @@ contract Staking is IStaking, InjectorContextHolder {
         _validatorOwners[validatorOwner] = validatorAddress;
         // add new validator to array
         if (status == ValidatorStatus.Active) {
-            _addValidatorToActiveValidatorsList(validatorAddress, sinceEpoch);
+            _activeValidatorsList.push(validatorAddress);
         }
         // push initial validator snapshot at zero epoch with default params
         _validatorSnapshots[validatorAddress][sinceEpoch] = ValidatorSnapshot(0, _packCompact(initialStake), 0, commissionRate);
@@ -651,72 +559,24 @@ contract Staking is IStaking, InjectorContextHolder {
         emit ValidatorAdded(validatorAddress, validatorOwner, uint8(status), commissionRate);
     }
 
-    function _addValidatorToActiveValidatorsList(address validatorAddress, uint64 epoch) internal {
-        if (epoch == 0) {
-            _activeValidatorsListPerEpoch.value[epoch].push(validatorAddress);
-            _activeValidatorsListPerEpoch.epochs.push(epoch);
-        } else if (_activeValidatorsListPerEpoch.value[epoch].length == 0 && _activeValidatorsListPerEpoch.epochs.length > 0) {
-            // copy the last known list
-            uint64 lastKnownEpoch = _activeValidatorsListPerEpoch.epochs[_activeValidatorsListPerEpoch.epochs.length-1];
-            _activeValidatorsListPerEpoch.value[epoch] = _activeValidatorsListPerEpoch.value[lastKnownEpoch];
-
-            _activeValidatorsListPerEpoch.value[epoch].push(validatorAddress);
-            _activeValidatorsListPerEpoch.epochs.push(epoch);
-        } else{
-            _activeValidatorsListPerEpoch.value[epoch].push(validatorAddress);
-        }
-        _validatorAdditionTs[validatorAddress] = block.timestamp;
-    }
-
-    function getActiveValidatorsList(uint64 epoch) public view returns (address[] memory) {
-        if (_activeValidatorsListPerEpoch.value[epoch].length > 0) {
-            return _activeValidatorsListPerEpoch.value[epoch];
-        } else {
-            uint256 epochsLen = _activeValidatorsListPerEpoch.epochs.length;
-            uint64 lastAvailableEpoch = _activeValidatorsListPerEpoch.epochs[epochsLen - 1];
-            // If we don't have the value for the epoch, return the lastAvailable epoch value if possible.
-            // (actually, epoch == lastAvailableEpoch case should be covered by the if statement above, but whatever..)
-            if (epoch >= lastAvailableEpoch) {
-                return _activeValidatorsListPerEpoch.value[lastAvailableEpoch];
-            } else {
-                // If we don't have the value for the epoch and epoch < lastAvailable
-                // binary search to find the closest epoch
-                uint256 left = 0;
-                uint256 right = epochsLen;
-                while (left < right) {
-                     uint256 mid = left + (right - left) / 2;
-                     if (_activeValidatorsListPerEpoch.epochs[mid] <= epoch) {
-                         left = mid + 1;
-                     } else {
-                         right = mid;
-                     }
-                }
-                return _activeValidatorsListPerEpoch.value[_activeValidatorsListPerEpoch.epochs[left-1]];
-            }
-        }
-    }
-
-    function removeValidator(address account) external onlyFromGovernance virtual override {
+    function removeValidator(address account) external onlyFromGovernance virtual {
         _removeValidator(account);
     }
 
     function _removeValidatorFromActiveList(address validatorAddress) internal {
-        // if the list doesn't exist for next epoch, copy over the last known list
-        uint64 ne = _nextEpoch();
-        if (_activeValidatorsListPerEpoch.value[ne].length == 0) {
-            uint64 lastKnownEpoch = _activeValidatorsListPerEpoch.epochs[_activeValidatorsListPerEpoch.epochs.length - 1];
-            _activeValidatorsListPerEpoch.value[ne] = _activeValidatorsListPerEpoch.value[lastKnownEpoch];
-            _activeValidatorsListPerEpoch.epochs.push(ne);
+        // find index of validator in validator set
+        int256 indexOf = - 1;
+        for (uint256 i = 0; i < _activeValidatorsList.length; i++) {
+            if (_activeValidatorsList[i] != validatorAddress) continue;
+            indexOf = int256(i);
+            break;
         }
-
         // remove validator from array (since we remove only active it might not exist in the list)
-        address[] storage avl = _activeValidatorsListPerEpoch.value[ne];
-        for (uint256 i = 0; i < avl.length; i++) {
-            if (avl[i] != validatorAddress) continue;
-            delete _validatorAdditionTs[validatorAddress];
-            avl[i] = avl[avl.length - 1];
-            avl.pop();
-            return;
+        if (indexOf >= 0) {
+            if (_activeValidatorsList.length > 1 && uint256(indexOf) != _activeValidatorsList.length - 1) {
+                _activeValidatorsList[uint256(indexOf)] = _activeValidatorsList[_activeValidatorsList.length - 1];
+            }
+            _activeValidatorsList.pop();
         }
     }
 
@@ -736,21 +596,21 @@ contract Staking is IStaking, InjectorContextHolder {
         emit ValidatorRemoved(account);
     }
 
-    function activateValidator(address validator) external onlyFromGovernance virtual override {
+    function activateValidator(address validator) external onlyFromGovernance virtual {
         _activateValidator(validator);
     }
 
     function _activateValidator(address validatorAddress) internal {
         Validator memory validator = _validatorsMap[validatorAddress];
         require(_validatorsMap[validatorAddress].status == ValidatorStatus.Pending, "np"); // not pending
-        _addValidatorToActiveValidatorsList(validatorAddress, _nextEpoch());
+        _activeValidatorsList.push(validatorAddress);
         validator.status = ValidatorStatus.Active;
         ValidatorSnapshot storage snapshot = _touchValidatorSnapshot(validator, _nextEpoch());
         _validatorsMap[validatorAddress] = validator;
         emit ValidatorModified(validatorAddress, validator.ownerAddress, uint8(validator.status), snapshot.commissionRate);
     }
 
-    function disableValidator(address validator) external onlyFromGovernance virtual override {
+    function disableValidator(address validator) external onlyFromGovernance virtual {
         _disableValidator(validator);
     }
 
@@ -775,7 +635,7 @@ contract Staking is IStaking, InjectorContextHolder {
         emit ValidatorModified(validator.validatorAddress, validator.ownerAddress, uint8(validator.status), commissionRate);
     }
 
-    function changeValidatorOwner(address validatorAddress, address newOwner) external override {
+    function changeValidatorOwner(address validatorAddress, address newOwner) external {
         Validator memory validator = _validatorsMap[validatorAddress];
         require(validator.ownerAddress == msg.sender, "oo"); // only owner
         require(_validatorOwners[newOwner] == address(0x00), "au"); // already used
@@ -787,7 +647,7 @@ contract Staking is IStaking, InjectorContextHolder {
         emit ValidatorModified(validator.validatorAddress, validator.ownerAddress, uint8(validator.status), snapshot.commissionRate);
     }
 
-    function isValidatorActive(address account) external override view returns (bool) {
+    function isValidatorActive(address account) external view returns (bool) {
         if (_validatorsMap[account].status != ValidatorStatus.Active) {
             return false;
         }
@@ -798,69 +658,43 @@ contract Staking is IStaking, InjectorContextHolder {
         return false;
     }
 
-    function isValidator(address account) external override view returns (bool) {
+    function isValidator(address account) external view returns (bool) {
         return _validatorsMap[account].status != ValidatorStatus.NotFound;
     }
 
-    function getValidators() public view override returns (address[] memory) {
-        return _getValidators(_currentEpoch());
-    }
-
-    function getValidatorsAtEpoch(uint64 epoch) public view returns (address[] memory) {
-        return _getValidators(epoch);
-    }
-
-    function _getValidators(uint64 epoch) internal view returns (address[] memory) {
-        address[] memory avl = getActiveValidatorsList(epoch);
-        uint256 n = avl.length;
+    function getValidators() public view returns (address[] memory) {
+        uint256 n = _activeValidatorsList.length;
+        address[] memory orderedValidators = new address[](n);
+        for (uint256 i = 0; i < n; i++) {
+            orderedValidators[i] = _activeValidatorsList[i];
+        }
         // we need to select k top validators out of n
-        uint256 k = _chainConfigContract.getActiveValidatorsLength(epoch);
+        uint256 k = _chainConfigContract.getActiveValidatorsLength();
         if (k > n) {
             k = n;
         }
-        uint256 i;
-        uint256 j;
-        uint256 nextValidator;
-        uint256 currentMaxTotalDelegated;
-        uint256 currentTotalDelegated;
-        for (;i < k;) {
-            nextValidator = i;
-
-            Validator memory currentMax = _validatorsMap[avl[nextValidator]];
-            currentMaxTotalDelegated = _totalDelegatedToValidator(currentMax, epoch);
-
-            unchecked{j = i + 1;}
-            for (;j < n;) {
-                Validator memory current = _validatorsMap[avl[j]];
-                currentTotalDelegated = _totalDelegatedToValidator(current, epoch);
-
-                if (currentMaxTotalDelegated < currentTotalDelegated) {
+        for (uint256 i = 0; i < k; i++) {
+            uint256 nextValidator = i;
+            Validator memory currentMax = _validatorsMap[orderedValidators[nextValidator]];
+            for (uint256 j = i + 1; j < n; j++) {
+                Validator memory current = _validatorsMap[orderedValidators[j]];
+                if (_totalDelegatedToValidator(currentMax) < _totalDelegatedToValidator(current)) {
                     nextValidator = j;
                     currentMax = current;
-                    currentMaxTotalDelegated = currentTotalDelegated;
-                } else if (currentMaxTotalDelegated == currentTotalDelegated) {
-                    // if validators have the same total delegated amount, sort chronologically
-                    if (_validatorAdditionTs[currentMax.validatorAddress] > _validatorAdditionTs[current.validatorAddress]) {
-                        nextValidator = j;
-                        currentMax = current;
-                        currentMaxTotalDelegated = currentTotalDelegated;
-                    }
                 }
-
-                unchecked { ++j; }
             }
-            (avl[i], avl[nextValidator]) = (avl[nextValidator], avl[i]);
-
-            unchecked { ++i; }
+            address backup = orderedValidators[i];
+            orderedValidators[i] = orderedValidators[nextValidator];
+            orderedValidators[nextValidator] = backup;
         }
         // this is to cut array to first k elements without copying
         assembly {
-            mstore(avl, k)
+            mstore(orderedValidators, k)
         }
-        return avl;
+        return orderedValidators;
     }
 
-    function deposit(address validatorAddress) external payable onlyFromCoinbaseOrTokenomicsOrStakingPool onlyZeroGasPrice virtual override {
+    function deposit(address validatorAddress) external payable onlyFromCoinbaseOrTokenomicsOrStakingPool onlyZeroGasPrice virtual {
         _depositFee(validatorAddress);
     }
 
@@ -876,7 +710,7 @@ contract Staking is IStaking, InjectorContextHolder {
         _validatorsMap[validatorAddress] = validator;
     }
 
-    function getValidatorFee(address validatorAddress) external override view returns (uint256) {
+    function getValidatorFee(address validatorAddress) external view returns (uint256) {
         // make sure validator exists at least
         Validator memory validator = _validatorsMap[validatorAddress];
         if (validator.status == ValidatorStatus.NotFound) {
@@ -886,7 +720,7 @@ contract Staking is IStaking, InjectorContextHolder {
         return _calcValidatorOwnerRewards(validator, _currentEpoch());
     }
 
-    function getValidatorFeeAtEpoch(address validatorAddress, uint64 beforeEpoch) external override view returns (uint256) {
+    function getValidatorFeeAtEpoch(address validatorAddress, uint64 beforeEpoch) external view returns (uint256) {
         // make sure validator exists at least
         Validator memory validator = _validatorsMap[validatorAddress];
         if (validator.status == ValidatorStatus.NotFound) {
@@ -896,7 +730,7 @@ contract Staking is IStaking, InjectorContextHolder {
         return _calcValidatorOwnerRewards(validator, beforeEpoch);
     }
 
-    function getPendingValidatorFee(address validatorAddress) external override view returns (uint256) {
+    function getPendingValidatorFee(address validatorAddress) external view returns (uint256) {
         // make sure validator exists at least
         Validator memory validator = _validatorsMap[validatorAddress];
         if (validator.status == ValidatorStatus.NotFound) {
@@ -906,7 +740,7 @@ contract Staking is IStaking, InjectorContextHolder {
         return _calcValidatorOwnerRewards(validator, _nextEpoch());
     }
 
-    function claimValidatorFee(address validatorAddress) external override {
+    function claimValidatorFee(address validatorAddress) external {
         // make sure validator exists at least
         Validator storage validator = _validatorsMap[validatorAddress];
         // only validator owner can claim deposit fee
@@ -915,7 +749,7 @@ contract Staking is IStaking, InjectorContextHolder {
         _claimValidatorOwnerRewards(validator, _currentEpoch());
     }
 
-    function claimValidatorFeeAtEpoch(address validatorAddress, uint64 beforeEpoch) external override {
+    function claimValidatorFeeAtEpoch(address validatorAddress, uint64 beforeEpoch) external {
         // make sure validator exists at least
         Validator storage validator = _validatorsMap[validatorAddress];
         // only validator owner can claim deposit fee
@@ -926,19 +760,19 @@ contract Staking is IStaking, InjectorContextHolder {
         _claimValidatorOwnerRewards(validator, beforeEpoch);
     }
 
-    function getDelegatorFee(address validatorAddress, address delegatorAddress) external override view returns (uint256) {
+    function getDelegatorFee(address validatorAddress, address delegatorAddress) external view returns (uint256) {
         return _calcDelegatorRewardsAndPendingUndelegates(validatorAddress, delegatorAddress, _currentEpoch(), true);
     }
 
-    function getDelegatorFeeAtEpoch(address validatorAddress, address delegatorAddress, uint64 beforeEpoch) external override view returns (uint256) {
+    function getDelegatorFeeAtEpoch(address validatorAddress, address delegatorAddress, uint64 beforeEpoch) external view returns (uint256) {
         return _calcDelegatorRewardsAndPendingUndelegates(validatorAddress, delegatorAddress, beforeEpoch, true);
     }
 
-    function getPendingDelegatorFee(address validatorAddress, address delegatorAddress) external override view returns (uint256) {
+    function getPendingDelegatorFee(address validatorAddress, address delegatorAddress) external view returns (uint256) {
         return _calcDelegatorRewardsAndPendingUndelegates(validatorAddress, delegatorAddress, _nextEpoch(), true);
     }
 
-    function claimDelegatorFee(address validatorAddress) external override {
+    function claimDelegatorFee(address validatorAddress) external {
         // claim all confirmed delegator fees including undelegates
         _transferDelegatorRewards(validatorAddress, msg.sender, _currentEpoch(), true, true);
     }
@@ -953,30 +787,30 @@ contract Staking is IStaking, InjectorContextHolder {
         return (amountToStake, claimableRewards - amountToStake);
     }
 
-    function calcAvailableForRedelegateAmount(address validator, address delegator) external override view returns (uint256 amountToStake, uint256 rewardsDust) {
+    function calcAvailableForRedelegateAmount(address validator, address delegator) external view returns (uint256 amountToStake, uint256 rewardsDust) {
         uint256 claimableRewards = _calcDelegatorRewardsAndPendingUndelegates(validator, delegator, _currentEpoch(), false);
         return _calcAvailableForRedelegateAmount(claimableRewards);
     }
 
-    function claimPendingUndelegates(address validator) external override {
+    function claimPendingUndelegates(address validator) external {
         // claim only pending undelegates
         _transferDelegatorRewards(validator, msg.sender, _currentEpoch(), false, true);
     }
 
-    function redelegateDelegatorFee(address validator) external override returns (uint256 amountToStake, uint256 rewardsDust) {
+    function redelegateDelegatorFee(address validator) external returns (uint256 amountToStake, uint256 rewardsDust) {
         // claim rewards in the redelegate mode (check function code for more info)
         return _redelegateDelegatorRewards(validator, msg.sender, _currentEpoch());
     }
 
-    function claimDelegatorFeeAtEpoch(address validatorAddress, uint64 beforeEpoch) external override {
+    function claimDelegatorFeeAtEpoch(address validatorAddress, uint64 beforeEpoch) external {
         // make sure delegator can't claim future epochs
         require(beforeEpoch <= _currentEpoch());
         // claim all confirmed delegator fees including undelegates
         _transferDelegatorRewards(validatorAddress, msg.sender, beforeEpoch, true, true);
     }
 
-    function _safeTransferWithGasLimit(address recipient, uint256 amount) internal {
-        (bool success,) = recipient.call{value : amount, gas : 50_000}("");
+    function _safeTransferWithGasLimit(address payable recipient, uint256 amount) internal {
+        (bool success,) = recipient.call{value : amount, gas : TRANSFER_GAS_LIMIT}("");
         require(success, "tf"); // transfer failed
     }
 
@@ -985,7 +819,7 @@ contract Staking is IStaking, InjectorContextHolder {
         require(success, "tf"); // transfer failed
     }
 
-    function slash(address validatorAddress) external onlyFromSlashingIndicator virtual override {
+    function slash(address validatorAddress) external onlyFromSlashingIndicator virtual {
         _slashValidator(validatorAddress);
     }
 
@@ -1015,21 +849,6 @@ contract Staking is IStaking, InjectorContextHolder {
     function togglePause() external onlyFromGovernance virtual {
         _paused = !_paused;
         emit Paused(_paused);
-    }
-
-    function claimSystemFee(address validatorAddress, uint64 beforeEpoch) external {
-        uint256 systemFee = 0;
-        Validator storage validator = _validatorsMap[validatorAddress];
-        uint64 claimAt = _systemFeeClaimedAt[validatorAddress];
-        for (; claimAt < beforeEpoch; claimAt++) {
-            ValidatorSnapshot storage validatorSnapshot = _validatorSnapshots[validator.validatorAddress][claimAt];
-            (,,uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot, claimAt);
-            systemFee += slashingFee;
-        }
-        _systemFeeClaimedAt[validator.validatorAddress] = claimAt;
-        // if we have system fee then pay it to treasury account
-        _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
-        emit SystemFeeClaimed(validator.validatorAddress, systemFee, beforeEpoch);
     }
 
     function _createOpDelegate(DelegationOpDelegate[] storage delegateQueue, uint64 epoch, uint112 amount) internal {
