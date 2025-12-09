@@ -27,7 +27,7 @@ contract Propose is Script {
             "upgradeSystemSmartContract(address,bytes,bytes)",
             0x0000000000000000000000000000000000007001,
             vm.getDeployedCode("StakingPool.sol:StakingPool"),
-            ""
+            abi.encodeWithSignature("setUnstakedPostSherlockSupplyFixUpdate()")
         );
         calldatas[2] = abi.encodeWithSignature(
             "upgradeSystemSmartContract(address,bytes,bytes)",
@@ -94,7 +94,7 @@ contract Execute is Script {
             "upgradeSystemSmartContract(address,bytes,bytes)",
             0x0000000000000000000000000000000000007001,
             vm.getDeployedCode("StakingPool.sol:StakingPool"),
-            ""
+            abi.encodeWithSignature("setUnstakedPostSherlockSupplyFixUpdate()")
         );
         calldatas[2] = abi.encodeWithSignature(
             "upgradeSystemSmartContract(address,bytes,bytes)",
