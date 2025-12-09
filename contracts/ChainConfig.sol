@@ -77,6 +77,7 @@ contract ChainConfig is InjectorContextHolder, IChainConfig {
         return _consensusParams;
     }
 
+    /// @notice depricated. use `getActiveValidatorsLength(uint64 epoch)` instead.
     function getActiveValidatorsLength() external view override returns (uint32) {
         return getActiveValidatorsLength(_stakingContract.currentEpoch());
     }
