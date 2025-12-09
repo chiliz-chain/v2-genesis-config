@@ -5,7 +5,6 @@ import "./Injector.sol";
 
 
 contract Staking is IStaking, InjectorContextHolder {
-
     /**
      * This constant indicates precision of storing compact balances in the storage or floating point. Since default
      * balance precision is 256 bits it might gain some overhead on the storage because we don't need to store such huge
@@ -121,6 +120,9 @@ contract Staking is IStaking, InjectorContextHolder {
     mapping(address => mapping(uint64 => ValidatorSnapshot)) internal _validatorSnapshots;
 
     bool internal _paused;
+
+    // mapping with validator addresses and epochs where the system fee was claimed (validator -> epoch)
+    mapping(address => uint64) internal _systemFeeClaimedAt;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
@@ -538,12 +540,16 @@ contract Staking is IStaking, InjectorContextHolder {
             ValidatorSnapshot memory validatorSnapshot = _validatorSnapshots[validator.validatorAddress][claimAt];
             (/*uint256 delegatorFee*/, uint256 ownerFee, uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
             availableFunds += ownerFee;
-            systemFee += slashingFee;
+            if (claimAt >= _systemFeeClaimedAt[validator.validatorAddress]){
+                systemFee += slashingFee;
+                _systemFeeClaimedAt[validator.validatorAddress] = claimAt + 1;
+            }
         }
         validator.claimedAt = claimAt;
         _safeTransferWithGasLimit(payable(validator.ownerAddress), availableFunds);
-        // if we have system fee then pay it to treasury account
-        _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
+        if (systemFee > 0) {
+            _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
+        }
         emit ValidatorOwnerClaimed(validator.validatorAddress, availableFunds, beforeEpoch);
     }
 
@@ -863,8 +869,8 @@ contract Staking is IStaking, InjectorContextHolder {
         _transferDelegatorRewards(validatorAddress, msg.sender, beforeEpoch, true, true);
     }
 
-    function _safeTransferWithGasLimit(address payable recipient, uint256 amount) internal {
-        (bool success,) = recipient.call{value : amount, gas : TRANSFER_GAS_LIMIT}("");
+    function _safeTransferWithGasLimit(address recipient, uint256 amount) internal {
+        (bool success,) = recipient.call{value : amount, gas : 50_000}("");
         require(success, "tf"); // transfer failed
     }
 
@@ -903,6 +909,21 @@ contract Staking is IStaking, InjectorContextHolder {
     function togglePause() external onlyFromGovernance virtual {
         _paused = !_paused;
         emit Paused(_paused);
+    }
+
+    function claimSystemFee(address validatorAddress, uint64 beforeEpoch) external {
+        uint256 systemFee = 0;
+        Validator storage validator = _validatorsMap[validatorAddress];
+        uint64 claimAt = _systemFeeClaimedAt[validatorAddress];
+        for (; claimAt < beforeEpoch; claimAt++) {
+            ValidatorSnapshot storage validatorSnapshot = _validatorSnapshots[validator.validatorAddress][claimAt];
+            (,,uint256 slashingFee) = _calcValidatorSnapshotEpochPayout(validatorSnapshot);
+            systemFee += slashingFee;
+        }
+        _systemFeeClaimedAt[validator.validatorAddress] = claimAt;
+        // if we have system fee then pay it to treasury account
+        _unsafeTransfer(payable(address(_systemRewardContract)), systemFee);
+        emit SystemFeeClaimed(validator.validatorAddress, systemFee, beforeEpoch);
     }
 
     function _createOpDelegate(DelegationOpDelegate[] storage delegateQueue, uint64 epoch, uint112 amount) internal {
