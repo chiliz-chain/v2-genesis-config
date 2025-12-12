@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/systemcontract"
+	"github.com/ethereum/go-ethereum/triedb"
 
 	"github.com/ethereum/go-ethereum/common/math"
 
@@ -35,7 +36,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/trie"
+
+	"github.com/holiman/uint256"
 )
 
 type artifactData struct {
@@ -88,10 +90,9 @@ func createExtraData(validators []common.Address) []byte {
 func readDirtyStorageFromState(f *state.StateObject) state.Storage {
 	var result map[common.Hash]common.Hash
 	rs := reflect.ValueOf(*f)
-	rf := rs.FieldByName("dirtyStorage")
 	rs2 := reflect.New(rs.Type()).Elem()
 	rs2.Set(rs)
-	rf = rs2.FieldByName("dirtyStorage")
+	rf := rs2.FieldByName("dirtyStorage")
 	rf = reflect.NewAt(rf.Type(), unsafe.Pointer(rf.UnsafeAddr())).Elem()
 	ri := reflect.ValueOf(&result).Elem()
 	ri.Set(rf)
@@ -476,11 +477,11 @@ var localNetConfig = genesisConfig{
 	},
 	ConsensusParams: consensusParams{
 		ActiveValidatorsLength:   25,                                                                    // suggested values are (3k+1, where k is honest validators, even better): 7, 13, 19, 25, 31...
-		EpochBlockInterval:       20,                                                                    // better to use 1 day epoch (86400/3=28800, where 3s is block time)
+		EpochBlockInterval:       60,                                                                    // better to use 1 day epoch (86400/3=28800, where 3s is block time)
 		MisdemeanorThreshold:     5,                                                                     // after missing this amount of blocks per day validator losses all daily rewards (penalty)
 		FelonyThreshold:          10,                                                                    // after missing this amount of blocks per day validator goes in jail for N epochs
 		ValidatorJailEpochLength: 3,                                                                     // how many epochs validator should stay in jail (7 epochs = ~7 days)
-		UndelegatePeriod:         2,                                                                     // allow claiming funds only after 6 epochs (~7 days)
+		UndelegatePeriod:         1,                                                                     // allow claiming funds only after 6 epochs (~7 days)
 		MinValidatorStakeAmount:  (*math.HexOrDecimal256)(hexutil.MustDecodeBig("0xde0b6b3a7640000")),   // 1 ether
 		MinStakingAmount:         (*math.HexOrDecimal256)(hexutil.MustDecodeBig("0x1bc16d674ec800002")), // 1 ether
 	},
