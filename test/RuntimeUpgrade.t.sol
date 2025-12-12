@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.17;
 
 import {Test, console} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
@@ -53,6 +53,8 @@ contract RuntimeUpgradeTest is Test {
     DummyContract dummyContract;
 
     uint16 public constant EPOCH_LEN = 100;
+
+    event DummyEvent();
 
     function setUp() public {
         bytes memory ctorChainConfig = abi.encodeWithSignature(
@@ -117,7 +119,7 @@ contract RuntimeUpgradeTest is Test {
         // upgrade DummyContract to DummyContract1 and make sure the 'applyFunction' gets called
         // by checking the emitted event from the function & the state variable
         vm.expectEmit(true, true, true, true);
-        emit DummyContract1.DummyEvent();
+        emit DummyEvent();
         vm.prank(vm.addr(20));
         runtimeUpgrade.upgradeSystemSmartContract(address(dummyContract), vm.getDeployedCode("DummyContract1"), abi.encodeWithSignature("dummyFunction()"));
         assertEq(dummyContract.dummyValue(), 8);
