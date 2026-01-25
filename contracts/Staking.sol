@@ -173,7 +173,7 @@ contract Staking is IStaking, InjectorContextHolder {
         uint256 delegatedAmount,
         uint64 atEpoch
     ) {
-        ValidatorDelegation memory delegation = _validatorDelegations[validatorAddress][delegator];
+        ValidatorDelegation storage delegation = _validatorDelegations[validatorAddress][delegator];
         if (delegation.delegateQueue.length == 0) {
             return (delegatedAmount = 0, atEpoch = 0);
         }
@@ -529,17 +529,18 @@ contract Staking is IStaking, InjectorContextHolder {
     }
 
     function _calcDelegatorRewardsAndPendingUndelegates(address validator, address delegator, uint64 beforeEpoch, bool withUndelegate) internal view returns (uint256) {
-        ValidatorDelegation memory delegation = _validatorDelegations[validator][delegator];
+        ValidatorDelegation storage delegation = _validatorDelegations[validator][delegator];
         uint256 availableFunds = 0;
+        uint64 delegateGap = delegation.delegateGap;
         // process delegate queue to calculate staking rewards
-        while (delegation.delegateGap < delegation.delegateQueue.length) {
-            DelegationOpDelegate memory delegateOp = delegation.delegateQueue[delegation.delegateGap];
+        while (delegateGap < delegation.delegateQueue.length) {
+            DelegationOpDelegate memory delegateOp = delegation.delegateQueue[delegateGap];
             if (delegateOp.epoch >= beforeEpoch) {
                 break;
             }
             uint256 voteChangedAtEpoch = 0;
-            if (delegation.delegateGap < delegation.delegateQueue.length - 1) {
-                voteChangedAtEpoch = delegation.delegateQueue[delegation.delegateGap + 1].epoch;
+            if (delegateGap < delegation.delegateQueue.length - 1) {
+                voteChangedAtEpoch = delegation.delegateQueue[delegateGap + 1].epoch;
             }
             for (; delegateOp.epoch < beforeEpoch && (voteChangedAtEpoch == 0 || delegateOp.epoch < voteChangedAtEpoch); delegateOp.epoch++) {
                 ValidatorSnapshot memory validatorSnapshot = _validatorSnapshots[validator][delegateOp.epoch];
@@ -549,16 +550,17 @@ contract Staking is IStaking, InjectorContextHolder {
                 (uint256 delegatorFee, /*uint256 ownerFee*/, /*uint256 systemFee*/) = _calcValidatorSnapshotEpochPayout(validatorSnapshot, delegateOp.epoch);
                 availableFunds += delegatorFee * delegateOp.amount / validatorSnapshot.totalDelegated;
             }
-            ++delegation.delegateGap;
+            ++delegateGap;
         }
         // process all items from undelegate queue
-        while (withUndelegate && delegation.undelegateGap < delegation.undelegateQueue.length) {
-            DelegationOpUndelegate memory undelegateOp = delegation.undelegateQueue[delegation.undelegateGap];
+        uint64 undelegateGap = delegation.undelegateGap;
+        while (withUndelegate && undelegateGap < delegation.undelegateQueue.length) {
+            DelegationOpUndelegate memory undelegateOp = delegation.undelegateQueue[undelegateGap];
             if (undelegateOp.epoch > beforeEpoch) {
                 break;
             }
             availableFunds += _unpackCompact(undelegateOp.amount);
-            ++delegation.undelegateGap;
+            ++undelegateGap;
         }
         // return available for claim funds
         return availableFunds;
