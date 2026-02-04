@@ -54,6 +54,8 @@ contract RuntimeUpgradeTest is Test {
 
     uint16 public constant EPOCH_LEN = 100;
 
+    event DummyEvent();
+
     function setUp() public {
         bytes memory ctorChainConfig = abi.encodeWithSignature(
             "ctor(uint32,uint32,uint32,uint32,uint32,uint32,uint256,uint256)",
@@ -117,7 +119,7 @@ contract RuntimeUpgradeTest is Test {
         // upgrade DummyContract to DummyContract1 and make sure the 'applyFunction' gets called
         // by checking the emitted event from the function & the state variable
         vm.expectEmit(true, true, true, true);
-        emit DummyContract1.DummyEvent();
+        emit DummyEvent();
         vm.prank(vm.addr(20));
         runtimeUpgrade.upgradeSystemSmartContract(address(dummyContract), vm.getDeployedCode("DummyContract1"), abi.encodeWithSignature("dummyFunction()"));
         assertEq(dummyContract.dummyValue(), 8);
