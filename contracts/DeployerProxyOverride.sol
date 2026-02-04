@@ -193,5 +193,5 @@ contract DeployerProxyOverride is IDeployerProxy, InjectorContextHolder {
         emit ContractEnabled(contractAddress);
     }
 
-    function removeContracts(address[] memory impls) public virtual {}
+    function removeContracts(address[] memory impls) public {}
 }
