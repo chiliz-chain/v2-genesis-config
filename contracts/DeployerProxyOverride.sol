@@ -3,7 +3,11 @@ pragma solidity ^0.8.0;
 
 import "./Injector.sol";
 
-contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
+/// DeployerProxyOverride contract used to bypass the local tx simulation issue of foundry.
+/// This is basically DeployerProxy from v4.0.0 with an empty removeContracts() function added to it
+/// allowing the local tx simulation step in DeployerProxyUpgrade.s.sol to call removeContracts() function
+/// without failing the tx.
+contract DeployerProxyOverride is IDeployerProxy, InjectorContextHolder {
     event DeployerWhitelistEnabled(bool indexed state);
     event DeployerAdded(address indexed account);
     event DeployerRemoved(address indexed account);
@@ -189,12 +193,5 @@ contract DeployerProxy is IDeployerProxy, InjectorContextHolder {
         emit ContractEnabled(contractAddress);
     }
 
-    function removeContracts(address[] memory impls) public onlyFromGovernance virtual {
-        for (uint256 i; i < impls.length; i++) {
-            address impl = impls[i];
-            delete _smartContracts[impl];
-            //emit event
-            emit ContractDeleted(impl);
-        }
-    }
+    function removeContracts(address[] memory impls) public virtual {}
 }
