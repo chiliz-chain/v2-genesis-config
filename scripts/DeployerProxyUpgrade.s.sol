@@ -8,23 +8,42 @@ import {ChainConfig} from "../contracts/ChainConfig.sol";
 
 /// @notice Scripts to upgrade DeployerProxy and call removeContracts() function
 
+/// @notice Dummy contract with deployment script for testing purposes
+contract DummyContract {
+    constructor() {}
+
+    function dummyFunction() public {}
+}
+
+contract DeployDummyContracts is Script {
+    function run() public {
+        vm.startBroadcast();
+        DummyContract dummy1 = new DummyContract();
+        DummyContract dummy2 = new DummyContract();
+        vm.stopBroadcast();
+    }
+}
+
 contract Propose is Script {
     function run() public {
-        address[] memory targets = new address[](1);
-        uint256[] memory values = new uint256[](1);
-        bytes[] memory calldatas = new bytes[](1);
+        address[] memory targets = new address[](2);
+        uint256[] memory values = new uint256[](2);
+        bytes[] memory calldatas = new bytes[](2);
 
         // IMPORTANT! SET THE ADDRESSES TO REMOVE BEFORE SENDING PROPOSAL
-        address[] memory addressesToRemove = new address[](1);
+        address[] memory addressesToRemove = new address[](2);
         addressesToRemove[0] = 0x0000000000000000000000000000000000000000;
+        addressesToRemove[1] = 0x0000000000000000000000000000000000000000;
 
         targets[0] = 0x0000000000000000000000000000000000007004; // RuntimeUpgrade
+        targets[1] = 0x0000000000000000000000000000000000007005; // DeployerProxy
         calldatas[0] = abi.encodeWithSignature(
             "upgradeSystemSmartContract(address,bytes,bytes)",
             0x0000000000000000000000000000000000007005,
             vm.getDeployedCode("DeployerProxy.sol:DeployerProxy"),
-            abi.encodeWithSignature("removeContracts(address[])", addressesToRemove)
+            ""
         );
+        calldatas[1] = abi.encodeWithSignature("removeContracts(address[])", addressesToRemove);
 
         vm.startBroadcast();
         uint256 proposalId = Governance(payable(0x0000000000000000000000000000000000007002)).proposeWithCustomVotingPeriod(
@@ -68,19 +87,24 @@ contract Execute is Script {
         string memory description = vm.envString("PROPOSAL_DESCRIPTION");
         bytes32 descriptionHash = keccak256(abi.encodePacked(description));
 
-        address[] memory targets = new address[](1);
-        uint256[] memory values = new uint256[](1);
-        bytes[] memory calldatas = new bytes[](1);
+        address[] memory targets = new address[](2);
+        uint256[] memory values = new uint256[](2);
+        bytes[] memory calldatas = new bytes[](2);
 
-        address[] memory addressesToRemove = new address[](1);
+        // IMPORTANT! SET THE ADDRESSES TO REMOVE BEFORE SENDING PROPOSAL
+        address[] memory addressesToRemove = new address[](2);
+        addressesToRemove[0] = 0x0000000000000000000000000000000000000000;
+        addressesToRemove[1] = 0x0000000000000000000000000000000000000000;
 
         targets[0] = 0x0000000000000000000000000000000000007004; // RuntimeUpgrade
+        targets[1] = 0x0000000000000000000000000000000000007005; // DeployerProxy
         calldatas[0] = abi.encodeWithSignature(
             "upgradeSystemSmartContract(address,bytes,bytes)",
             0x0000000000000000000000000000000000007005,
             vm.getDeployedCode("DeployerProxy.sol:DeployerProxy"),
-            abi.encodeWithSignature("removeContracts(address[])", addressesToRemove)
+            ""
         );
+        calldatas[1] = abi.encodeWithSignature("removeContracts(address[])", addressesToRemove);
 
         // etch the new DeployerProxyOverride contracts to bypass the failure of foundry's local tx simulation step
         vm.etch(0x0000000000000000000000000000000000007005, vm.getDeployedCode("DeployerProxyOverride.sol:DeployerProxyOverride"));
