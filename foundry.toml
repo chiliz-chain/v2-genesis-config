@@ -9,10 +9,10 @@ remappings = [
     "truffle/=node_modules/truffle/",
     "forge-std/=lib/forge-std/src/",
 ]
-# gas_limit = "18446744073709551615"
-fs_permissions = [{ access = "read", path = "./out"}]
 solc = "0.8.17"
 optimizer = true
 optimizer_runs = 50
+# gas_limit = "18446744073709551615"
+fs_permissions = [{ access = "read", path = "./out"}]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
