@@ -197,12 +197,14 @@ contract StakingPoolTest is Test {
         // reset totalStake, shareSupply, _unstakedPostSherlockSupplyFixUpdate, staker shares
         bytes32 validatorPoolsSlot = keccak256(abi.encode(validator, 102));
         bytes32 stakerSharesSlot = keccak256(abi.encode(validator, 104));
-        bytes32 postAuditFixMappingSlot = keccak256(abi.encode(staker, 105));
+        bytes32 postAuditFixMappingSlot1 = keccak256(abi.encode(staker, 105)); // _unstakedPostSherlockSupplyFixUpdate
+        bytes32 postAuditFixMappingSlot2 = keccak256(abi.encode(validator, 106)); // _decrementedSharesAtUnstake
 
         vm.store(address(stakingPool), bytes32(uint256(validatorPoolsSlot) + 1), bytes32(validatorPoolBeforeUnstake.sharesSupply));
         vm.store(address(stakingPool), bytes32(uint256(validatorPoolsSlot) + 2), bytes32(validatorPoolBeforeUnstake.totalStakedAmount));
         vm.store(address(stakingPool), keccak256(abi.encode(staker, stakerSharesSlot)), bytes32(stakerSharesBeforeUnstake));
-        vm.store(address(stakingPool), postAuditFixMappingSlot, bytes32(abi.encode(false)));
+        vm.store(address(stakingPool), postAuditFixMappingSlot1, bytes32(abi.encode(false)));
+        vm.store(address(stakingPool), keccak256(abi.encode(staker, postAuditFixMappingSlot2)), bytes32(abi.encode(false)));
 
         // claim
         vm.roll(block.number + EPOCH_LEN * 2); // cooldown period
