@@ -122,4 +122,19 @@ contract GovernancePepper8 is Test {
         vm.prank(validator1);
         governance.execute(new address[](1), new uint256[](1), new bytes[](1), keccak256("empty proposal"));
     }
+
+    function test_IsProposer() public {
+
+        address validator = vm.addr(5);
+        address proposer = vm.addr(6);
+
+        vm.startPrank(address(governance));
+        governance.activateProposerRegistry();
+        governance.addProposer(proposer);
+        vm.stopPrank();
+
+        assertEq(governance.isProposer(validator), true, "validator should be a proposer");
+        assertEq(governance.isProposer(proposer), true, "proposer should be a proposer");
+        assertEq(governance.isProposer(vm.addr(7)), false, "non-proposer should not be a proposer");
+    }
 }
