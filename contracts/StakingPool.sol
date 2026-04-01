@@ -30,8 +30,13 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
     // accounts that unstaked tokens after #125 was applied.
     // this is needed to correctly decrement the variables for users that unstaked prior
     // to the change.
+    // !!DEPRICATED!!, use _decrementedSharesAtUnstake instead, we can't remove it because it's already live on Spicy
     // (staker => bool)
     mapping(address => bool) internal _unstakedPostSherlockSupplyFixUpdate;
+    // this mappings serves the same purpose as _unstakedPostSherlockSupplyFixUpdate, but for each staker individually.
+    // it's needed to correctly decrement the variables for users that unstaked prior to the change on multiple validators.
+    // (validator => staker => flag)
+    mapping(address => mapping(address => bool)) internal _decrementedSharesAtUnstake;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
@@ -161,8 +166,8 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
         validatorPool.sharesSupply -= shares;
         validatorPool.totalStakedAmount -= amount;
         _validatorPools[validator] = validatorPool;
-        _stakerShares[validator][msg.sender] -= shares; //double check this
-        _unstakedPostSherlockSupplyFixUpdate[msg.sender] = true;
+        _stakerShares[validator][msg.sender] -= shares;
+        _decrementedSharesAtUnstake[validator][msg.sender] = true;
         // undelegate
         _stakingContract.undelegate(validator, amount);
         // emit event
@@ -184,8 +189,8 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
         require(pendingUnstake.epoch <= _currentEpoch(), "StakingPool: not ready");
         // updates shares and validator pool params
         ValidatorPool memory validatorPool = _getValidatorPool(validator);
-        if (!_unstakedPostSherlockSupplyFixUpdate[msg.sender]) {
-            _stakerShares[validator][msg.sender] -= shares; //double check this
+        if (!_decrementedSharesAtUnstake[validator][msg.sender] || _unstakedPostSherlockSupplyFixUpdate[msg.sender]) {
+            _stakerShares[validator][msg.sender] -= shares;
             validatorPool.sharesSupply -= shares;
             validatorPool.totalStakedAmount -= amount;
         }
