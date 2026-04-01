@@ -82,13 +82,6 @@ contract Governance is InjectorContextHolder, GovernorCountingSimpleUpgradeable,
 
     function _activateProposerRegistry() internal {
         require(!_registryActivated, "Governance: registry already activated");
-        address[] memory currentValidatorSet = _stakingContract.getValidators();
-        for (uint256 i = 0; i < currentValidatorSet.length; i++) {
-            (address ownerAddress, uint8 status,,,,,,,) = _stakingContract.getValidatorStatus(currentValidatorSet[i]);
-            if (status == uint8(1)) {
-                _addProposer(ownerAddress);
-            }
-        }
         _registryActivated = true;
     }
 
@@ -97,7 +90,7 @@ contract Governance is InjectorContextHolder, GovernorCountingSimpleUpgradeable,
     }
 
     function isProposer(address account) public view returns (bool) {
-        return _proposerRegistry[account] || _stakingContract.isValidatorActive(_stakingContract.getValidatorByOwner(msg.sender));
+        return _proposerRegistry[account] || _stakingContract.isValidatorActive(_stakingContract.getValidatorByOwner(account));
     }
 
     function execute(
