@@ -219,13 +219,16 @@ contract StakingPoolTest is Test {
     }
 
     function test_readUnstakedPostSherlockSupplyFixUpdateSlot() public {
-        bytes32 postAuditFixMappingSlot = keccak256(abi.encode(address(0), 105));
+        bytes32 postAuditFixMappingSlot1 = keccak256(abi.encode(address(0), 105)); // _unstakedPostSherlockSupplyFixUpdate[address(0)]
+        bytes32 postAuditFixMappingSlot2 = keccak256(abi.encode(address(0), keccak256(abi.encode(address(0), 106)))); // _decrementedSharesAtUnstake[address(0)][address(0)]
 
-        assertEq(vm.load(address(stakingPool), postAuditFixMappingSlot), bytes32(abi.encode(false)));
+        assertEq(vm.load(address(stakingPool), postAuditFixMappingSlot1), bytes32(abi.encode(false)));
+        assertEq(vm.load(address(stakingPool), postAuditFixMappingSlot2), bytes32(abi.encode(false)));
 
         vm.prank(vm.addr(20));
         stakingPool.setUnstakedPostSherlockSupplyFixUpdate();
 
-        assertEq(vm.load(address(stakingPool), postAuditFixMappingSlot), bytes32(abi.encode(true)));
+        assertEq(vm.load(address(stakingPool), postAuditFixMappingSlot1), bytes32(abi.encode(true)));
+        assertEq(vm.load(address(stakingPool), postAuditFixMappingSlot2), bytes32(abi.encode(true)));
     }
 }

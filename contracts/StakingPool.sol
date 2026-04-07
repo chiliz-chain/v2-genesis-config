@@ -50,6 +50,7 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
     ///         be subtracted from the total stake.
     function setUnstakedPostSherlockSupplyFixUpdate() external onlyFromRuntimeUpgrade {
         _unstakedPostSherlockSupplyFixUpdate[address(0)] = true;
+        decrementedSharesAtUnstake[address(0)][address(0)] = true;
     }
 
     function getStakedAmount(address validator, address staker) external view returns (uint256) {
