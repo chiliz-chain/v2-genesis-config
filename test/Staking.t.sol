@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.17;
 
 import {Test, console} from "forge-std/Test.sol";
 
@@ -19,7 +19,9 @@ import "../contracts/interfaces/ITokenomics.sol";
 import {StakingPool} from "../contracts/StakingPool.sol";
 import {Staking} from "../contracts/Staking.sol";
 import {ChainConfig} from "../contracts/ChainConfig.sol";
+import {JsTruffleFixture} from "./JsTruffleFixture.sol";
 
+/// @notice `StakingTest`: pool + real staking genesis. `StakingJsTest`: Fake staking direct delegate flows (`staking.js` parity).
 contract StakingTest is Test {
     StakingPool public stakingPool;
     Staking public staking;
@@ -204,5 +206,137 @@ contract StakingTest is Test {
 
         assertEq(len, 2);
         assertEq(gap, 1);
+    }
+}
+
+/// @notice Port of the first scenarios in `genesis/test/staking.js` (direct `delegate` / `undelegate` / `claim`).
+contract StakingJsTest is JsTruffleFixture {
+    uint32 internal constant EPOCH_BLOCKS = 50;
+
+    MockChain internal chain;
+    address internal alice = vm.addr(1);
+    address internal bob = vm.addr(2);
+    address internal validator = vm.addr(11);
+    address internal validatorLeft = vm.addr(11);
+    address internal validatorRight = vm.addr(12);
+
+    function setUp() public {
+        chain = deployDefaultMockChain(EPOCH_BLOCKS, 2);
+        chain.staking.addValidator(validatorLeft);
+        chain.staking.addValidator(validatorRight);
+        vm.deal(alice, 20 ether);
+        vm.deal(bob, 20 ether);
+    }
+
+    function test_simpleDelegation() public {
+        (uint256 delegatedBefore,) = chain.staking.getValidatorDelegation(validator, alice);
+        assertEq(delegatedBefore, 0);
+
+        vm.prank(alice);
+        chain.staking.delegate{value: 1 ether}(validator);
+        (uint256 delegatedAlice,) = chain.staking.getValidatorDelegation(validator, alice);
+        assertEq(delegatedAlice, 1 ether);
+
+        vm.prank(bob);
+        chain.staking.delegate{value: 1 ether}(validator);
+        (uint256 delegatedBob,) = chain.staking.getValidatorDelegation(validator, bob);
+        assertEq(delegatedBob, 1 ether);
+
+        (,, uint256 totalDelegated,,,,,,) = chain.staking.getValidatorStatus(validator);
+        assertEq(totalDelegated, 2 ether);
+    }
+
+    function test_delegateIncreasesAfterEpoch() public {
+        vm.prank(alice);
+        chain.staking.delegate{value: 1 ether}(validator);
+        (uint256 delegated,) = chain.staking.getValidatorDelegation(validator, alice);
+        assertEq(delegated, 1 ether);
+
+        rollToNextEpoch(chain, EPOCH_BLOCKS);
+        vm.prank(alice);
+        chain.staking.delegate{value: 1 ether}(validator);
+        (delegated,) = chain.staking.getValidatorDelegation(validator, alice);
+        assertEq(delegated, 2 ether);
+    }
+
+    function test_repeatedUndelegateThenClaim() public {
+        vm.prank(alice);
+        chain.staking.delegate{value: 3 ether}(validator);
+
+        rollToNextEpoch(chain, EPOCH_BLOCKS);
+        vm.prank(alice);
+        chain.staking.undelegate(validator, 1 ether);
+        vm.prank(alice);
+        chain.staking.undelegate(validator, 1 ether);
+        rollToNextEpoch(chain, EPOCH_BLOCKS);
+        vm.prank(alice);
+        chain.staking.undelegate(validator, 1 ether);
+
+        (,, uint256 totalDelegated,,,,,,) = chain.staking.getValidatorStatus(validator);
+        assertEq(totalDelegated, 0);
+        rollToNextEpoch(chain, EPOCH_BLOCKS);
+
+        uint256 balanceBeforeClaim = alice.balance;
+        vm.prank(alice);
+        chain.staking.claimDelegatorFee(validator);
+        assertEq(alice.balance, balanceBeforeClaim + 3 ether);
+    }
+
+    function test_undelegateOrderingAndClaims() public {
+        vm.prank(alice);
+        chain.staking.delegate{value: 1 ether}(validatorLeft);
+        vm.prank(bob);
+        chain.staking.delegate{value: 2 ether}(validatorRight);
+
+        vm.expectRevert();
+        vm.prank(bob);
+        chain.staking.undelegate(validatorRight, 1);
+        vm.expectRevert();
+        vm.prank(bob);
+        chain.staking.undelegate(validatorRight, 1 ether + 1);
+
+        vm.prank(bob);
+        chain.staking.undelegate(validatorRight, 1 ether);
+        (,, uint256 totalLeft,,,,,,) = chain.staking.getValidatorStatus(validatorLeft);
+        (,, uint256 totalRight,,,,,,) = chain.staking.getValidatorStatus(validatorRight);
+        assertEq(totalLeft, 1 ether);
+        assertEq(totalRight, 1 ether);
+
+        vm.prank(bob);
+        chain.staking.undelegate(validatorRight, 1 ether);
+        (uint256 bobDelegated,) = chain.staking.getValidatorDelegation(validatorRight, bob);
+        assertEq(bobDelegated, 0);
+        rollToNextEpoch(chain, EPOCH_BLOCKS);
+
+        uint256 aliceBefore = alice.balance;
+        vm.prank(alice);
+        chain.staking.claimDelegatorFee(validatorLeft);
+        assertEq(alice.balance, aliceBefore);
+
+        uint256 bobBefore = bob.balance;
+        vm.prank(bob);
+        chain.staking.claimDelegatorFee(validatorRight);
+        assertEq(bob.balance, bobBefore + 2 ether);
+    }
+
+    function test_cannotUndelegateMoreThanDelegated() public {
+        vm.prank(alice);
+        chain.staking.delegate{value: 1 ether}(validator);
+        vm.prank(alice);
+        chain.staking.delegate{value: 2 ether}(validator);
+        vm.prank(alice);
+        chain.staking.delegate{value: 3 ether}(validator);
+        vm.prank(alice);
+        chain.staking.undelegate(validator, 5 ether);
+
+        vm.expectRevert();
+        vm.prank(alice);
+        chain.staking.undelegate(validator, 2 ether);
+
+        vm.prank(alice);
+        chain.staking.undelegate(validator, 1 ether);
+        rollToNextEpoch(chain, EPOCH_BLOCKS);
+        vm.prank(alice);
+        chain.staking.claimDelegatorFee(validator);
     }
 }

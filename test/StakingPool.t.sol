@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.17;
 
 import {Test, stdStorage, StdStorage, console} from "forge-std/Test.sol";
 
@@ -19,7 +19,9 @@ import {ITokenomics} from "../contracts/interfaces/ITokenomics.sol";
 import {StakingPool} from "../contracts/StakingPool.sol";
 import {Staking} from "../contracts/Staking.sol";
 import {ChainConfig} from "../contracts/ChainConfig.sol";
+import {JsTruffleFixture} from "./JsTruffleFixture.sol";
 
+/// @notice `StakingPoolTest`: real staking + pool. `StakingPoolJsTest`: Fake staking + pool (`staking-pool.js` parity).
 contract StakingPoolTest is Test {
     using stdStorage for StdStorage;
 
@@ -230,5 +232,80 @@ contract StakingPoolTest is Test {
 
         assertEq(vm.load(address(stakingPool), postAuditFixMappingSlot1), bytes32(abi.encode(true)));
         assertEq(vm.load(address(stakingPool), postAuditFixMappingSlot2), bytes32(abi.encode(true)));
+    }
+}
+
+/// @notice Port of `genesis/test/staking-pool.js` — FakeStaking + pool stake/unstake/claim and delegator fee edge cases.
+contract StakingPoolJsTest is JsTruffleFixture {
+    event Stake(address indexed validator, address indexed staker, uint256 amount);
+    event Unstake(address indexed validator, address indexed staker, uint256 amount);
+    event Claim(address indexed validator, address indexed staker, uint256 amount);
+
+    MockChain internal chain;
+    address internal validator = vm.addr(11);
+    address internal delegator = vm.addr(12);
+    address internal stakerAlice = vm.addr(1);
+    address internal stakerBob = vm.addr(2);
+
+    function setUp() public {
+        chain = deployDefaultMockChain(50, 2);
+        chain.staking.addValidator(validator);
+        vm.coinbase(vm.addr(256));
+        vm.deal(block.coinbase, 100 ether);
+        vm.deal(stakerAlice, 100 ether);
+        vm.deal(stakerBob, 100 ether);
+    }
+
+    function test_emptyDelegatorClaimDoesNotRevert() public {
+        vm.prank(delegator);
+        chain.staking.claimDelegatorFee(validator);
+    }
+
+    function test_simpleStakingEventsAndBalances() public {
+        vm.expectEmit(true, true, true, true);
+        emit Stake(validator, stakerAlice, 1 ether);
+        vm.prank(stakerAlice);
+        chain.stakingPool.stake{value: 1 ether}(validator);
+
+        vm.expectEmit(true, true, true, true);
+        emit Stake(validator, stakerAlice, 1 ether);
+        vm.prank(stakerAlice);
+        chain.stakingPool.stake{value: 1 ether}(validator);
+
+        vm.expectEmit(true, true, true, true);
+        emit Stake(validator, stakerBob, 1 ether);
+        vm.prank(stakerBob);
+        chain.stakingPool.stake{value: 1 ether}(validator);
+
+        assertEq(chain.stakingPool.getStakedAmount(validator, stakerAlice), 2 ether);
+        assertEq(chain.stakingPool.getStakedAmount(validator, stakerBob), 1 ether);
+    }
+
+    function test_stakeUnstakeClaimWithRewards() public {
+        vm.prank(stakerAlice);
+        chain.stakingPool.stake{value: 50 ether}(validator);
+        assertEq(chain.stakingPool.getStakedAmount(validator, stakerAlice), 50 ether);
+
+        rollToNextEpoch(chain, 50);
+
+        vm.prank(block.coinbase);
+        vm.txGasPrice(0);
+        chain.staking.deposit{value: 1010000000000000000}(validator);
+        rollToNextEpoch(chain, 50);
+
+        assertEq(chain.stakingPool.getStakedAmount(validator, stakerAlice), 51009999999999999964);
+
+        vm.expectEmit(true, true, true, true);
+        emit Unstake(validator, stakerAlice, 50 ether);
+        vm.prank(stakerAlice);
+        chain.stakingPool.unstake(validator, 50 ether);
+        rollToNextEpoch(chain, 50);
+
+        vm.expectEmit(true, true, true, true);
+        emit Claim(validator, stakerAlice, 50 ether);
+        vm.prank(stakerAlice);
+        chain.stakingPool.claim(validator);
+
+        assertEq(chain.stakingPool.getStakedAmount(validator, stakerAlice), 1009999999999999999);
     }
 }
