@@ -1,10 +1,6 @@
 .PHONY: clean
 clean:
-	forge clean
-
-.PHONY: install
-install:
-	yarn
+	forge clean && rm -rf cache
 
 .PHONY: compile
 compile:
@@ -12,7 +8,7 @@ compile:
 
 .PHONY: test
 test:
-	yarn coverage
+	forge test
 
 .PHONY: create-genesis
 create-genesis:
