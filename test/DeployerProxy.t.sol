@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.17;
 
 import {Test, stdStorage, StdStorage, console} from "forge-std/Test.sol";
 
@@ -20,7 +20,10 @@ import {StakingPool} from "../contracts/StakingPool.sol";
 import {Staking} from "../contracts/Staking.sol";
 import {ChainConfig} from "../contracts/ChainConfig.sol";
 import {DeployerProxy} from "../contracts/DeployerProxy.sol";
+import {JsTruffleFixture} from "./JsTruffleFixture.sol";
+import {TestDeployerFactory} from "../contracts/tests/TestDeployerFactory.sol";
 
+/// @notice `DeployerProxyTest`: real `DeployerProxy` + whitelist off. `DeployerProxyJsTest`: Fake deployer + Truffle JS parity (`deployer.js`).
 contract DeployerProxyTest is Test {
     event ContractDeployed(address indexed account, address impl);
     event ContractDeleted(address indexed contractAddress);
@@ -110,10 +113,10 @@ contract DeployerProxyTest is Test {
 
         // make sure the state is "reset"
         for (uint256 i = 0; i < contractAddrs.length; i++) {
-            (uint8 state, address impl, address deployer) = deployerProxy.getContractState(contractAddrs[i]);
+            (uint8 state, address impl, address recordedDeployer) = deployerProxy.getContractState(contractAddrs[i]);
             assertEq(state, 0);
             assertEq(impl, address(0));
-            assertEq(deployer, address(0));
+            assertEq(recordedDeployer, address(0));
         }
 
         // Adding the contracts again should be successful
@@ -123,5 +126,192 @@ contract DeployerProxyTest is Test {
             emit ContractDeployed(deployer, contractAddrs[i]);
             deployerProxy.registerDeployedContract(deployer, contractAddrs[i]);
         }
+    }
+}
+
+/// @notice Port of `genesis/test/deployer.js` — whitelist, registry, ban/unban, enable/disable (uses `FakeDeployerProxy` via `JsTruffleFixture`).
+contract DeployerProxyJsTest is JsTruffleFixture {
+    event DeployerAdded(address indexed account);
+    event DeployerRemoved(address indexed account);
+    event ContractDeployed(address indexed account, address impl);
+    event ContractDisabled(address indexed contractAddress);
+    event ContractEnabled(address indexed contractAddress);
+    event DeployerWhitelistEnabled(bool indexed state);
+
+    address internal testOwner = vm.addr(100);
+
+    MockChain internal chain;
+
+    function setUp() public {
+        chain = deployDefaultMockChain();
+    }
+
+    /// @notice Whitelist: add then remove a deployer; events and `isDeployer` must match.
+    function test_addRemoveDeployer() public {
+        address deployerAccount = address(1);
+
+        assertFalse(chain.deployerProxy.isDeployer(deployerAccount));
+        vm.expectEmit(true, true, true, true);
+        emit DeployerAdded(deployerAccount);
+        chain.deployerProxy.addDeployer(deployerAccount);
+        assertTrue(chain.deployerProxy.isDeployer(deployerAccount));
+
+        vm.expectEmit(true, true, true, true);
+        emit DeployerRemoved(deployerAccount);
+        chain.deployerProxy.removeDeployer(deployerAccount);
+        assertFalse(chain.deployerProxy.isDeployer(deployerAccount));
+    }
+
+    /// @notice A genesis-whitelisted account can register a contract, then governance (Fake) can disable/re-enable it.
+    function test_disableEnableContract() public {
+        address whitelistedDeployer = address(1);
+        address[] memory genesisDeployers = new address[](1);
+        genesisDeployers[0] = whitelistedDeployer;
+
+        address[] memory noValidators = new address[](0);
+        uint256[] memory noStakes = new uint256[](0);
+        address[] memory rewardToBurn = new address[](1);
+        rewardToBurn[0] = address(0);
+        uint16[] memory fullShare = new uint16[](1);
+        fullShare[0] = 10000;
+
+        MockChain memory customChain = deployMockChain(
+            noValidators, noStakes, rewardToBurn, fullShare, genesisDeployers, vm.addr(1), 10, 2
+        );
+
+        address registeredImpl = address(0x222);
+        customChain.deployerProxy.registerDeployedContract(whitelistedDeployer, registeredImpl);
+
+        (uint8 state,,) = customChain.deployerProxy.getContractState(registeredImpl);
+        assertEq(state, uint8(DeployerProxy.ContractState.Enabled));
+
+        vm.expectEmit(true, true, true, true);
+        emit ContractDisabled(registeredImpl);
+        customChain.deployerProxy.disableContract(registeredImpl);
+        (state,,) = customChain.deployerProxy.getContractState(registeredImpl);
+        assertEq(state, uint8(DeployerProxy.ContractState.Disabled));
+
+        vm.expectEmit(true, true, true, true);
+        emit ContractEnabled(registeredImpl);
+        customChain.deployerProxy.enableContract(registeredImpl);
+        (state,,) = customChain.deployerProxy.getContractState(registeredImpl);
+        assertEq(state, uint8(DeployerProxy.ContractState.Enabled));
+    }
+
+    /// @notice Registration fails until account is on whitelist; then state stores impl and deployer.
+    function test_registerRequiresWhitelistUnlessDeployer() public {
+        address newContract = address(0x123);
+
+        vm.expectRevert(bytes("Deployer: deployer is not allowed"));
+        chain.deployerProxy.registerDeployedContract(testOwner, newContract);
+
+        chain.deployerProxy.addDeployer(testOwner);
+        vm.expectEmit(true, true, true, true);
+        emit ContractDeployed(testOwner, newContract);
+        chain.deployerProxy.registerDeployedContract(testOwner, newContract);
+
+        (uint8 state, address storedImpl, address recordedDeployer) = chain.deployerProxy.getContractState(newContract);
+        assertEq(state, uint8(DeployerProxy.ContractState.Enabled));
+        assertEq(storedImpl, newContract);
+        assertEq(recordedDeployer, testOwner);
+    }
+
+    /// @notice With whitelist off, any account may register without being pre-added.
+    function test_registerWhenWhitelistDisabled() public {
+        assertTrue(chain.deployerProxy.isDeployerWhitelistEnabled());
+        assertFalse(chain.deployerProxy.isDeployer(testOwner));
+
+        chain.deployerProxy.toggleDeployerWhitelist(false);
+        assertFalse(chain.deployerProxy.isDeployerWhitelistEnabled());
+
+        address newContract = address(0x123);
+        chain.deployerProxy.registerDeployedContract(testOwner, newContract);
+        (uint8 state,,) = chain.deployerProxy.getContractState(newContract);
+        assertEq(state, uint8(DeployerProxy.ContractState.Enabled));
+    }
+
+    /// @notice Constructor `address[]` seeds initial whitelist entries.
+    function test_genesisDeployersInConstructor() public {
+        address[] memory genesisDeployers = new address[](3);
+        genesisDeployers[0] = address(1);
+        genesisDeployers[1] = address(2);
+        genesisDeployers[2] = address(3);
+
+        address[] memory noValidators = new address[](0);
+        uint256[] memory noStakes = new uint256[](0);
+        address[] memory rewardToBurn = new address[](1);
+        rewardToBurn[0] = address(0);
+        uint16[] memory fullShare = new uint16[](1);
+        fullShare[0] = 10000;
+
+        MockChain memory genesisChain =
+            deployMockChain(noValidators, noStakes, rewardToBurn, fullShare, genesisDeployers, vm.addr(1), 10, 2);
+
+        assertFalse(genesisChain.deployerProxy.isDeployer(address(0)));
+        assertTrue(genesisChain.deployerProxy.isDeployer(address(1)));
+        assertTrue(genesisChain.deployerProxy.isDeployer(address(2)));
+        assertTrue(genesisChain.deployerProxy.isDeployer(address(3)));
+        assertFalse(genesisChain.deployerProxy.isDeployer(address(4)));
+    }
+
+    /// @notice Ban marks deployer unusable for registration; unban clears the flag (runs with whitelist on and off).
+    function test_banUnbanDeployer() public {
+        _runBanUnbanScenario(false);
+        _runBanUnbanScenario(true);
+    }
+
+    function _runBanUnbanScenario(bool startWithWhitelistDisabled) internal {
+        MockChain memory scenarioChain = deployDefaultMockChain();
+        if (startWithWhitelistDisabled) {
+            scenarioChain.deployerProxy.toggleDeployerWhitelist(false);
+        }
+
+        address deployerAccount = address(1);
+        scenarioChain.deployerProxy.addDeployer(deployerAccount);
+        assertTrue(scenarioChain.deployerProxy.isDeployer(deployerAccount));
+        assertFalse(scenarioChain.deployerProxy.isBanned(deployerAccount));
+
+        scenarioChain.deployerProxy.banDeployer(deployerAccount);
+        assertTrue(scenarioChain.deployerProxy.isDeployer(deployerAccount));
+        assertTrue(scenarioChain.deployerProxy.isBanned(deployerAccount));
+
+        scenarioChain.deployerProxy.unbanDeployer(deployerAccount);
+        assertTrue(scenarioChain.deployerProxy.isDeployer(deployerAccount));
+        assertFalse(scenarioChain.deployerProxy.isBanned(deployerAccount));
+    }
+
+    /// @notice Registering a factory contract also whitelists the factory address as a deployer (JS `TestDeployerFactory`).
+    function test_factoryRegisteredAsDeployer() public {
+        chain.deployerProxy.addDeployer(testOwner);
+
+        TestDeployerFactory factory = new TestDeployerFactory();
+        chain.deployerProxy.registerDeployedContract(testOwner, address(factory));
+
+        assertTrue(chain.deployerProxy.isDeployer(testOwner));
+        assertTrue(chain.deployerProxy.isDeployer(address(factory)));
+
+        chain.deployerProxy.toggleDeployerWhitelist(false);
+        assertTrue(chain.deployerProxy.isDeployer(testOwner));
+        assertTrue(chain.deployerProxy.isDeployer(address(factory)));
+    }
+
+    /// @notice Toggling whitelist: when off, `isDeployer` is vacuously true; when on, only listed accounts qualify.
+    function test_toggleDeployerWhitelist() public {
+        address arbitraryAccount = address(1);
+
+        assertTrue(chain.deployerProxy.isDeployerWhitelistEnabled());
+        assertFalse(chain.deployerProxy.isDeployer(arbitraryAccount));
+
+        vm.expectEmit(true, true, true, true);
+        emit DeployerWhitelistEnabled(false);
+        chain.deployerProxy.toggleDeployerWhitelist(false);
+        assertFalse(chain.deployerProxy.isDeployerWhitelistEnabled());
+        assertTrue(chain.deployerProxy.isDeployer(arbitraryAccount));
+
+        vm.expectEmit(true, true, true, true);
+        emit DeployerWhitelistEnabled(true);
+        chain.deployerProxy.toggleDeployerWhitelist(true);
+        assertTrue(chain.deployerProxy.isDeployerWhitelistEnabled());
+        assertFalse(chain.deployerProxy.isDeployer(arbitraryAccount));
     }
 }

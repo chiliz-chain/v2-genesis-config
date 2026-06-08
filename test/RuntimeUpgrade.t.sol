@@ -19,8 +19,11 @@ import "../contracts/interfaces/ITokenomics.sol";
 
 import {RuntimeUpgrade} from "../contracts/RuntimeUpgrade.sol";
 import {ChainConfig} from "../contracts/ChainConfig.sol";
+import {JsTruffleFixture} from "./JsTruffleFixture.sol";
+import {FakeRuntimeUpgradeEvmHook} from "../contracts/tests/FakeRuntimeUpgradeEvmHook.sol";
 
-contract FakeRuntimeUpgradeEvmHook is IRuntimeUpgradeEvmHook {
+/// @dev Uses Forge `vm.etch` so `upgradeSystemSmartContract` can swap bytecode in `RuntimeUpgradeTest`.
+contract VmEtchRuntimeUpgradeHook is IRuntimeUpgradeEvmHook {
     Vm internal vm;
     event Upgraded(address contractAddress, bytes byteCode);
     constructor(Vm _vm) {
@@ -70,7 +73,7 @@ contract RuntimeUpgradeTest is Test {
         );
         chainConfig = new ChainConfig(ctorChainConfig);
 
-        FakeRuntimeUpgradeEvmHook fakeRuntimeUpgradeEvmHook = new FakeRuntimeUpgradeEvmHook(vm);
+        VmEtchRuntimeUpgradeHook fakeRuntimeUpgradeEvmHook = new VmEtchRuntimeUpgradeHook(vm);
 
         bytes memory ctorRuntimeUpgrade = abi.encodeWithSignature("ctor(address)", address(fakeRuntimeUpgradeEvmHook));
         runtimeUpgrade = new RuntimeUpgrade(ctorRuntimeUpgrade);
@@ -123,5 +126,42 @@ contract RuntimeUpgradeTest is Test {
         vm.prank(vm.addr(20));
         runtimeUpgrade.upgradeSystemSmartContract(address(dummyContract), vm.getDeployedCode("DummyContract1"), abi.encodeWithSignature("dummyFunction()"));
         assertEq(dummyContract.dummyValue(), 8);
+    }
+}
+
+/// @notice Port of `genesis/test/runtime-upgrade.js` — full mock chain + `FakeRuntimeUpgrade` upgrades staking slot (`getSystemContracts()[0]`).
+contract RuntimeUpgradeJsTest is JsTruffleFixture {
+    event Upgraded(address contractAddress, bytes byteCode);
+    event SmartContractUpgrade(address contractAddress, bytes newByteCode);
+
+    FakeRuntimeUpgradeEvmHook internal evmHook;
+    MockChain internal chain;
+
+    function setUp() public {
+        evmHook = new FakeRuntimeUpgradeEvmHook();
+
+        address[] memory noValidators = new address[](0);
+        uint256[] memory noStakes = new uint256[](0);
+        address[] memory rewardToBurn = new address[](1);
+        rewardToBurn[0] = address(0);
+        uint16[] memory fullShare = new uint16[](1);
+        fullShare[0] = 10000;
+        address[] memory noDeployers = new address[](0);
+
+        chain = deployMockChain(noValidators, noStakes, rewardToBurn, fullShare, noDeployers, address(evmHook), 10, 2);
+    }
+
+    /// @notice EVM hook emits `Upgraded`, then `RuntimeUpgrade` emits `SmartContractUpgrade` with the same target and bytecode.
+    function test_migration_upgradeEmitsAndSetsBytecode() public {
+        assertEq(chain.runtimeUpgrade.getEvmHookAddress(), address(evmHook));
+
+        address stakingContract = chain.runtimeUpgrade.getSystemContracts()[0];
+        bytes memory placeholderBytecode = hex"badcab1e";
+
+        vm.expectEmit(true, true, true, true);
+        emit Upgraded(stakingContract, placeholderBytecode);
+        vm.expectEmit(true, true, true, true);
+        emit SmartContractUpgrade(stakingContract, placeholderBytecode);
+        chain.runtimeUpgrade.upgradeSystemSmartContract(stakingContract, placeholderBytecode, "");
     }
 }
