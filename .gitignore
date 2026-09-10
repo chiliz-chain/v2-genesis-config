@@ -10,3 +10,4 @@ coverage.json
 out/
 snapshots/
 .env
+broadcast/

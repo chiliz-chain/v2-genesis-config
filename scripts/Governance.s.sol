@@ -22,7 +22,12 @@ import {IGovernorUpgradeable} from "@openzeppelin/contracts-upgradeable/governan
 /// }
 ///
 /// When `etchOverrides` is true: if `etchAddresses` / `etchArtifacts` are present, the script
-/// pairs them by index and calls `vm.etch` for each.
+/// pairs them by index and calls `vm.etch` for each, in BOTH Propose and Execute.
+///
+/// Set it for any proposal whose calldata calls a function that does not exist in the currently deployed
+/// bytecode — a runtime upgrade that swaps a system contract and then calls a new migration function on it.
+/// Without it, Execute's local dry run reverts with `RuntimeUpgrade: migration failed` and never broadcasts.
+/// See `_applyEtchOverrides` for why.
 ///
 /// Optional env flags:
 /// - `AUTO_ADVANCE=true` then either:
@@ -76,16 +81,29 @@ contract GovernanceScript is Script {
             require(etchAddrs.length > 0, "empty etchAddresses");
         }
     }
+
+    /// @dev Installs the post-upgrade bytecode locally so Foundry's dry run matches what the chain will do.
+    ///
+    ///      A runtime-upgrade proposal replaces a system contract and then immediately calls a function that
+    ///      only exists in the NEW bytecode. On-chain that works, because the EVM hook at `0x…7f01` swaps the
+    ///      code first. Foundry cannot run that hook: it is native client code with no bytecode, so a call to
+    ///      it on a fork silently succeeds and swaps nothing. The follow-up call then hits the OLD contract,
+    ///      finds no such selector and reverts — `RuntimeUpgrade: migration failed` — and the transaction is
+    ///      never broadcast even though it would have succeeded on-chain.
+    ///
+    ///      Etching only affects the local fork used for the dry run. The broadcast transaction is unchanged
+    ///      and the real hook performs the real swap.
+    function _applyEtchOverrides() internal {
+        if (!etchOverrides) return;
+        for (uint256 i = 0; i < etchAddrs.length; i++) {
+            vm.etch(etchAddrs[i], vm.getDeployedCode(etchArts[i]));
+        }
+    }
 }
 
 contract Propose is GovernanceScript {
     function run() public {
-        if (etchOverrides) {
-            // Bypass Foundry's local simulation step for system contracts
-            for (uint256 i = 0; i < etchAddrs.length; i++) {
-                vm.etch(etchAddrs[i], vm.getDeployedCode(etchArts[i]));
-            }
-        }
+        _applyEtchOverrides();
 
         vm.startBroadcast();
         uint256 proposalId = Governance(payable(governanceAddr)).proposeWithCustomVotingPeriod(
@@ -154,6 +172,10 @@ contract Execute is GovernanceScript {
         }
 
         bytes32 descriptionHash = keccak256(abi.encodePacked(description));
+
+        // Execute is where this actually matters: it is the only step that RUNS the proposal calldata, so it
+        // is the step whose dry run hits the not-yet-deployed bytecode. (Propose merely records the calldata.)
+        _applyEtchOverrides();
 
         vm.startBroadcast();
         Governance(payable(governanceAddr)).execute(targets, values, calldatas, descriptionHash);
