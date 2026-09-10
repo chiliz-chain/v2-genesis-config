@@ -71,7 +71,19 @@ func (d *dummyChainContext) Engine() consensus.Engine {
 	return nil
 }
 
+func (d *dummyChainContext) CurrentHeader() *types.Header {
+	return nil
+}
+
 func (d *dummyChainContext) GetHeader(common.Hash, uint64) *types.Header {
+	return nil
+}
+
+func (d *dummyChainContext) GetHeaderByNumber(number uint64) *types.Header {
+	return nil
+}
+
+func (d *dummyChainContext) GetHeaderByHash(hash common.Hash) *types.Header {
 	return nil
 }
 
@@ -233,7 +245,13 @@ type ChilizForks struct {
 	Dragon8FixTime         uint64                `json:"dragon8FixTime,omitempty"`
 	Pepper8Time            uint64                `json:"pepper8Time,omitempty"`
 	Snake8Time             uint64                `json:"snake8Time,omitempty"`
+	// Pointer, unlike the fields above: nil means "not scheduled" rather than
+	// "active at genesis". Snake8Fix (COR-173) must never be scheduled on a
+	// network implicitly.
+	Snake8FixTime *uint64 `json:"snake8FixTime,omitempty"`
 }
+
+func newUint64(v uint64) *uint64 { return &v }
 
 type genesisConfig struct {
 	ChainId          int64                     `json:"chainId"`
@@ -417,6 +435,7 @@ func defaultGenesisConfig(config genesisConfig) *core.Genesis {
 		Dragon8FixTime:         &config.Forks.Dragon8FixTime,
 		Pepper8Time:            &config.Forks.Pepper8Time,
 		Snake8Time:             &config.Forks.Snake8Time,
+		Snake8FixTime:          config.Forks.Snake8FixTime,
 
 		// NEW FORKS
 		// Ethereum forks
@@ -507,8 +526,11 @@ var localNetConfig = genesisConfig{
 		DeployerFactoryBlock:   (*math.HexOrDecimal256)(big.NewInt(0)),
 		Dragon8Time:            uint64(time.Now().Unix()),
 		Dragon8FixTime:         uint64(time.Now().Unix()),
-		Pepper8Time:            uint64(time.Now().Unix()) + 100,
-		Snake8Time:             uint64(time.Now().Unix()) + 200,
+		Pepper8Time:            uint64(time.Now().Unix())+100,
+		Snake8Time:             uint64(time.Now().Unix())+200,
+		// After Snake8 (+200s) so the Snake8Fix transition — pinned stake reads
+		// and consensus-verified frequency data (COR-173) — activates live mid-run.
+		Snake8FixTime:          newUint64(uint64(time.Now().Unix())+260),
 	},
 }
 
@@ -528,12 +550,12 @@ var devNetConfig = genesisConfig{
 		common.HexToAddress("0x0000000000000000000000000000000000000000"): 10000,
 	},
 	ConsensusParams: consensusParams{
-		ActiveValidatorsLength:   25, // suggested values are (3k+1, where k is honest validators, even better): 7, 13, 19, 25, 31...
+		ActiveValidatorsLength:   25,   // suggested values are (3k+1, where k is honest validators, even better): 7, 13, 19, 25, 31...
 		EpochBlockInterval:       30, // better to use 1 day epoch (86400/3=28800, where 3s is block time)
-		MisdemeanorThreshold:     3,  // after missing this amount of blocks per day validator losses all daily rewards (penalty)
+		MisdemeanorThreshold:     3,   // after missing this amount of blocks per day validator losses all daily rewards (penalty)
 		FelonyThreshold:          5,  // after missing this amount of blocks per day validator goes in jail for N epochs
-		ValidatorJailEpochLength: 2,  // how many epochs validator should stay in jail (7 epochs = ~7 days)
-		UndelegatePeriod:         1,  // allow claiming funds only after 6 epochs (~7 days)
+		ValidatorJailEpochLength: 2,    // how many epochs validator should stay in jail (7 epochs = ~7 days)
+		UndelegatePeriod:         1,    // allow claiming funds only after 6 epochs (~7 days)
 
 		MinValidatorStakeAmount: (*math.HexOrDecimal256)(hexutil.MustDecodeBig("0xde0b6b3a7640000")), // how many tokens validator must stake to create a validator (in ether)
 		MinStakingAmount:        (*math.HexOrDecimal256)(hexutil.MustDecodeBig("0xde0b6b3a7640000")), // minimum staking amount for delegators (in ether)
@@ -564,8 +586,11 @@ var devNetConfig = genesisConfig{
 		DeployerFactoryBlock:   (*math.HexOrDecimal256)(big.NewInt(0)),
 		Dragon8Time:            uint64(time.Now().Unix()),
 		Dragon8FixTime:         uint64(time.Now().Unix()),
-		Pepper8Time:            uint64(time.Now().Unix()) + 100,
-		Snake8Time:             uint64(time.Now().Unix()) + 200,
+		Pepper8Time:            uint64(time.Now().Unix())+100,
+		Snake8Time:             uint64(time.Now().Unix())+200,
+		// After Snake8 (+200s) so the Snake8Fix transition — pinned stake reads
+		// and consensus-verified frequency data (COR-173) — activates live mid-run.
+		Snake8FixTime:          newUint64(uint64(time.Now().Unix())+260),
 	},
 }
 

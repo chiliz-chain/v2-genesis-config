@@ -31,12 +31,28 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
     // this is needed to correctly decrement the variables for users that unstaked prior
     // to the change.
     // !!DEPRECATED!!, use decrementedSharesAtUnstake instead, we can't remove it because it's already live on Spicy
-    // (staker => bool)
+    //
+    // Read-only for real stakers: nothing in this contract writes a per-staker entry any more. Every true
+    // value for a real address was written by bytecode that is no longer here, so this mapping looks
+    // unreachable and is not. `claim()` still reads it, and ~121 open pre-fix pendings on Spicy owe their
+    // deferred decrement to that read. The only remaining writer is the [address(0)] sentinel below, which
+    // is an off-chain signal and never a staker.
+    // DO NOT DELETE: this is live storage on Spicy and mainnet, and removing it shifts slots 106 and 107,
+    // silently reinterpreting real balances.
+    // Slot 105. (staker => bool)
     mapping(address => bool) internal _unstakedPostSherlockSupplyFixUpdate;
     // this mappings serves the same purpose as _unstakedPostSherlockSupplyFixUpdate, but for each staker individually.
     // it's needed to correctly decrement the variables for users that unstaked prior to the change on multiple validators.
     // (validator => staker => flag)
     mapping(address => mapping(address => bool)) public decrementedSharesAtUnstake;
+    // Records that the one-time COR-111 state remediation ran on this chain. Its writer
+    // (`applyCorrections`) was removed once the Spicy proposal executed; the flag is kept so the
+    // migration stays provable on-chain. Chain-dependent: true on Spicy (88882), false on mainnet,
+    // where the correction was never applicable rather than pending.
+    // Slot 107. System contracts are upgraded by SetCode via the RuntimeUpgrade EVM hook, which
+    // replaces code and leaves storage untouched -- this slot holds 1 on Spicy forever. Never reuse
+    // it; append any new state strictly after it, at slot 108.
+    bool public correctionsApplied;
 
     constructor(bytes memory constructorParams) InjectorContextHolder(constructorParams) {
     }
@@ -190,7 +206,7 @@ contract StakingPool is InjectorContextHolder, IStakingPool {
         require(pendingUnstake.epoch <= _currentEpoch(), "StakingPool: not ready");
         // updates shares and validator pool params
         ValidatorPool memory validatorPool = _getValidatorPool(validator);
-        if (!decrementedSharesAtUnstake[validator][msg.sender] || _unstakedPostSherlockSupplyFixUpdate[msg.sender]) {
+        if (!decrementedSharesAtUnstake[validator][msg.sender] && !_unstakedPostSherlockSupplyFixUpdate[msg.sender]) {
             _stakerShares[validator][msg.sender] -= shares;
             validatorPool.sharesSupply -= shares;
             validatorPool.totalStakedAmount -= amount;
