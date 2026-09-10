@@ -13,7 +13,12 @@ remappings = [
 solc = "0.8.17"
 optimizer = true
 optimizer_runs = 50
-# gas_limit = "18446744073709551615"
-fs_permissions = [{ access = "read", path = "./"}]
+gas_limit = "18446744073709551615"  # max — the reconstruction script does many SSTOREs; default 2^30 OOMs
+fs_permissions = [
+    { access = "read", path = "./"},
+    # Generated correction data: the reconstruction output and the assembled applyCorrections calldata.
+    # Granted on the directory rather than per file so a new output does not need a foundry.toml change.
+    { access = "read-write", path = "./scripts/corrections"},
+]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
